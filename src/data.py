@@ -1,16 +1,12 @@
 import random
 
 import matplotlib
-matplotlib.use('TkAgg')
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
 import config
 
-
-def iter_data():
-    while True:
-        yield _generate_sample()
 
 def _sample_text():
     text = "".join(random.choice(config.TEXT_ALPHABETH) for _ in range(config.TEXT_LENGTH))
@@ -30,12 +26,14 @@ def _fig_to_numpy(fig):
     image_np = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
     H, W = fig.canvas.get_width_height()
     image_np = image_np.reshape((W, H, 3))
+
     return image_np
 
-def _generate_sample():
+def generate_sample():
     text = _sample_text()
     fig = _plot_sample(text)
     image_np = _fig_to_numpy(fig)
+    plt.close(fig)
     return text, image_np
 
 

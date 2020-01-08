@@ -3,7 +3,7 @@ import tensorflow_datasets as tfds
 # features.text import TokenTextEncoder, Tokenizer
 
 import config
-from data import iter_data
+from data import generate_sample
 
 import tensorflow as tf
 
@@ -35,6 +35,16 @@ def get_encoder():
 #         return encoded_text, image
 #     return encode
 
+def get_generate_fn():
+    def generate(_):
+        text, image = generate_sample()
+        return text, image 
+
+    def generate_fn(_):
+        return tf.py_function(generate, inp=[_], Tout=(tf.string, tf.int32))
+    
+    return generate_fn
+
 def get_encode_text_fn(encoder):
     def encode(text, image):
         encoded_text = encoder.encode(text.numpy())
@@ -46,8 +56,9 @@ def get_encode_text_fn(encoder):
     return encode_text_fn
 
 def get_format_img_fn():
+    size = [config.IMAGE_H, config.IMAGE_W]
     def format_img(text, image):
-        image = tf.image.resize(image, [150, 150])
+        image = tf.image.resize(image, size)
         image = tf.image.convert_image_dtype(image, tf.float32)
         image /= 255.  # Range between 0 and 1
         return text, image
@@ -58,13 +69,27 @@ def get_format_img_fn():
     return format_img_fn
 
 
-def get_dataset(encoder):    
+def get_set_shapes_fn():
+    def set_shapes_fn(text, image):
+        text.set_shape([2])
+        image.set_shape([config.IMAGE_H, config.IMAGE_W, 3])
+        return text, image
+    
+    return set_shapes_fn
+
+
+
+def get_dataset(encoder):
+    size = 100
+    # We do all the work in the map functions so that the work can be better paralellized
     ds = tf.data.Dataset.from_generator(
-        iter_data, 
-        output_types=(tf.string, tf.int32), 
+        lambda: range(size), 
+        output_types=tf.int32, 
     )
+    ds = ds.map(get_generate_fn())
     ds = ds.map(get_encode_text_fn(encoder))
     ds = ds.map(get_format_img_fn())
+    ds = ds.map(get_set_shapes_fn())
     return ds
 
 
