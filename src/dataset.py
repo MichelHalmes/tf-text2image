@@ -80,10 +80,10 @@ def get_set_shapes_fn():
 
 
 def get_dataset(encoder):
-    size = 100
+    SIZE = 128
     # We do all the work in the map functions so that the work can be better paralellized
     ds = tf.data.Dataset.from_generator(
-        lambda: range(size), 
+        lambda: range(SIZE), 
         output_types=tf.int32, 
     )
     ds = ds.map(get_generate_fn())
