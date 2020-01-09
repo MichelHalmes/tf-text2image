@@ -7,18 +7,30 @@ import numpy as np
 
 import config
 
+COLORS = ["blue", "green", "red", "cyan", "magenta", "yellow", "black", "white"]
 
-def _sample_text():
-    text = "".join(random.choice(config.TEXT_ALPHABETH) for _ in range(config.TEXT_LENGTH))
-    return text
 
-def _plot_sample(text):
+def _sample_chars():
+    return "".join(random.choice(config.CHARS_ALPHABETH) for _ in range(config.CHARS_LENGTH))
+
+
+def _sample_spec_dict():
+    return {
+        "backgroundcolor": random.choice(COLORS), 
+        "color": random.choice(COLORS)
+    }
+
+def _spec_dict_as_text(spec_dict):
+    return ", ".join(f"{key} {value}" for key, value in spec_dict.items())
+
+def _plot_sample(chars, spec_dict):
     fig, ax = plt.subplots(1, frameon=False)
     ax.set_position([0., 0., 1., 1.])
     ax.set_axis_off()
-    ax.text(0.5, 0.5, text, horizontalalignment='center', verticalalignment='center', fontsize=200)
-    # plt.show()
-    # raise
+    ax.text(0.5, 0.5, chars, 
+            horizontalalignment="center", verticalalignment="center", 
+            fontsize=150, **spec_dict)
+    fig.set_facecolor(spec_dict["backgroundcolor"])
     return fig
 
 def _fig_to_numpy(fig):
@@ -30,13 +42,12 @@ def _fig_to_numpy(fig):
     return image_np
 
 def generate_sample():
-    text = _sample_text()
-    fig = _plot_sample(text)
+    chars = _sample_chars()
+    spec_dict = _sample_spec_dict()
+    spec_ = _spec_dict_as_text(spec_dict)
+    fig = _plot_sample(chars, spec_dict)
     image_np = _fig_to_numpy(fig)
     plt.close(fig)
-    return text, image_np
-
-
-
+    return chars, spec_, image_np
 
 

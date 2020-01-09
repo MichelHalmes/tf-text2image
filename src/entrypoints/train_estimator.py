@@ -19,8 +19,7 @@ def train():
     model.compile(loss=K.losses.mean_squared_error, 
                 optimizer=optimizer,
                 metrics=[K.losses.mean_absolute_error]
-    )        
-
+    )
 
     checkpoint_dir = path.join(config.CHECKPOINT_DIR, "tf")
     estimator = K.estimator.model_to_estimator(keras_model=model, 
