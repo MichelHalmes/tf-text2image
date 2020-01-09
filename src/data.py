@@ -15,9 +15,12 @@ def _sample_chars():
 
 
 def _sample_spec_dict():
+    backgroundcolor = random.choice(COLORS)
+    color = random.choice(COLORS)
+    color = random.choice(COLORS) if color == backgroundcolor else color  # Reduce the probability of having just a colored square
     return {
-        "backgroundcolor": random.choice(COLORS), 
-        "color": random.choice(COLORS)
+        "backgroundcolor": backgroundcolor,
+        "color": color
     }
 
 def _spec_dict_as_text(spec_dict):
