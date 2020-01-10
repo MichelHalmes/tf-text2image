@@ -4,7 +4,7 @@ import tensorflow.keras as K
 
 
 def get_model(chars_encoder, spec_encoder):
-    chars = K.layers.Input(shape=[2], name="chars")
+    chars = K.layers.Input(shape=[None], name="chars")
     chars_embed = K.layers.Embedding(input_dim=chars_encoder.vocab_size, output_dim=4)(chars)
     chars_encoded = K.layers.GRU(16)(chars_embed)
 
@@ -14,14 +14,14 @@ def get_model(chars_encoder, spec_encoder):
 
     input_encoded = K.layers.concatenate([chars_encoded, spec_encoded])
     FEAT_HW = 8
-    FEAT_C = 8
+    FEAT_C = 16
     features = K.layers.Dense(FEAT_HW*FEAT_HW*FEAT_C, activation='relu')(input_encoded)
     feature_map = K.layers.Reshape((FEAT_HW, FEAT_HW, FEAT_C))(features)
 
+    feature_map = K.layers.Conv2DTranspose(filters=8, kernel_size=3, padding="same", strides=2, activation="relu")(feature_map)
+    feature_map = K.layers.Conv2DTranspose(filters=8, kernel_size=3, padding="same", strides=2, activation="relu")(feature_map)
+    feature_map = K.layers.Conv2DTranspose(filters=7, kernel_size=3, padding="same", strides=2, activation="relu")(feature_map)
     feature_map = K.layers.Conv2DTranspose(filters=6, kernel_size=3, padding="same", strides=2, activation="relu")(feature_map)
-    feature_map = K.layers.Conv2DTranspose(filters=6, kernel_size=3, padding="same", strides=2, activation="relu")(feature_map)
-    feature_map = K.layers.Conv2DTranspose(filters=4, kernel_size=3, padding="same", strides=2, activation="relu")(feature_map)
-    feature_map = K.layers.Conv2DTranspose(filters=4, kernel_size=3, padding="same", strides=2, activation="relu")(feature_map)
     image = K.layers.Conv2D(filters=3, kernel_size=2, padding="same", activation="relu")(feature_map)
 
     model = K.models.Model(inputs=[chars, spec], outputs=image)

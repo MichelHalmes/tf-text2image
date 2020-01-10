@@ -2,7 +2,7 @@
 import tensorflow as tf
 
 import config
-from data import generate_sample
+from data.generate import generate_sample
 
 
 # def get_encode_text_fn(encoder):
@@ -16,6 +16,8 @@ from data import generate_sample
 def get_generate_fn():
     def generate(_):
         chars, spec, image = generate_sample()
+        chars += config.EOS_CHAR
+        spec += " "+config.EOS_CHAR
         return chars, spec, image 
 
     def generate_fn(_):
@@ -53,8 +55,8 @@ def get_format_img_fn():
 
 def get_set_shapes_fn():
     def set_shapes_fn(chars, spec, image):
-        chars.set_shape([2])
-        spec.set_shape([4])
+        chars.set_shape([3])
+        spec.set_shape([5])
         image.set_shape([config.IMAGE_H, config.IMAGE_W, 3])
         return {"chars": chars, "spec": spec}, image
     

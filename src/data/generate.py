@@ -32,7 +32,7 @@ def _plot_sample(chars, spec_dict):
     ax.set_axis_off()
     ax.text(0.5, 0.5, chars, 
             horizontalalignment="center", verticalalignment="center", 
-            fontsize=150, **spec_dict)
+            fontsize=300, **spec_dict)
     fig.set_facecolor(spec_dict["backgroundcolor"])
     return fig
 

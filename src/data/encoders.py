@@ -1,11 +1,9 @@
 
 import tensorflow_datasets as tfds
-# features.chars import TokenTextEncoder, Tokenizer
 import tensorflow as tf
 
 import config
-from data import generate_sample
-
+from data.generate import generate_sample
 
 
 class CharTokenizer(object):
@@ -19,7 +17,7 @@ class CharTokenizer(object):
 
 
 def get_chars_encoder():
-    vocab_list = list(config.CHARS_ALPHABETH)
+    vocab_list = list(config.CHARS_ALPHABETH + config.EOS_CHAR)
     chars_encoder = tfds.features.text.TokenTextEncoder(
         vocab_list,
         tokenizer=CharTokenizer(),
@@ -27,10 +25,21 @@ def get_chars_encoder():
     )
     return chars_encoder
 
-def get_spec_encoder():
-    tokenizer = tfds.features.text.Tokenizer()
 
-    vocabulary_set = set()
+class SpecTokenizer(object):
+    def tokenize(self, s):
+        """Splits a string into tokens."""
+        s = tf.compat.as_text(s)
+        return s.split(" ")
+    def join(self, tokens):
+        """Joins tokens into a string."""
+        return " ".join(tokens)
+
+def get_spec_encoder():
+    # tokenizer = tfds.features.text.Tokenizer()
+    tokenizer = SpecTokenizer()
+
+    vocabulary_set = set(config.EOS_CHAR)
     no_update_cnt = 0
     while no_update_cnt < 100:
         _, spec, _ = generate_sample()
