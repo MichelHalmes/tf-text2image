@@ -14,6 +14,7 @@ from data.encoders import get_chars_encoder, get_spec_encoder
 from model import get_model
 import config
 from evaluation import EvaluationLogger
+from utils import CustomSchedule
 
 
 @click.command()
@@ -49,7 +50,6 @@ def train(restore):
     val_data = dataset.batch(config.BATCH_SIZE).take(8)
     model.fit(train_data, epochs=config.NUM_EPOCHS, initial_epoch=initial_epoch,
                 validation_data=val_data, callbacks=callbacks)
-
 
 
 
