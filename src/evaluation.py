@@ -39,14 +39,12 @@ class EvaluationLogger(K.callbacks.Callback):
         self._data_iter = iter(dataset.batch(3))
         self._chars_encoder = chars_encoder
         self._spec_encoder = spec_encoder
+        
 
-    def on_epoch_end(self, epoch, logs=None):
-        # if epoch % 5 != 0:
-        #     return
-    
+    def on_epoch_end(self, epoch, logs=None):   
         input_dict, images = next(self._data_iter)
         gen_images = self._model(input_dict)
-        gen_images = tf.clip_by_value(gen_images, 0., 1.)
+        # gen_images = tf.clip_by_value(gen_images, 0., 1.)
 
         charss = [self._chars_encoder.decode(chars.numpy()) \
                         for chars in input_dict["chars"]]

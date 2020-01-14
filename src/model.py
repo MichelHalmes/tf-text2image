@@ -23,8 +23,11 @@ def get_model(chars_encoder, spec_encoder):
     feature_map = K.layers.Conv2DTranspose(filters=32, kernel_size=5, padding="same", strides=2, activation="relu")(feature_map)
     feature_map = K.layers.Conv2DTranspose(filters=16, kernel_size=5, padding="same", strides=2, activation="relu")(feature_map)
     feature_map = K.layers.Conv2DTranspose(filters=8, kernel_size=5, padding="same", strides=2, activation="relu")(feature_map)
-    image = K.layers.Conv2DTranspose(filters=3, kernel_size=5, padding="same", strides=2, activation="relu")(feature_map)
+    image = K.layers.Conv2DTranspose(filters=3, kernel_size=5, padding="same", strides=2, activation="tanh")(feature_map)
     # image = K.layers.Conv2D(filters=3, kernel_size=3, padding="same", activation="relu")(feature_map)
+    # We use tanh to help the model saturate the accepted color range.
+    # We have to normalize though to get numbers in [0, 1]
+    image = (image+1.) / 2.
 
     model = K.models.Model(inputs=[chars, spec], outputs=image)
 
