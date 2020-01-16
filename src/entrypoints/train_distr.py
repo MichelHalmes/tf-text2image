@@ -12,11 +12,10 @@ import tensorflow as tf
 sys.path.append(path.abspath(path.join(__file__, "../../")))
 
 from data.dataset import get_dataset
-from data.encoders import get_chars_encoder, get_spec_encoder
-from model import get_model
+from data.encoders import get_encoders
+from model import get_models
 import config
 from evaluation import EvaluationLogger
-from utils import CustomSchedule
 
 
 @click.command()
@@ -47,35 +46,28 @@ def _init_process(restore, rank, size):
 def train(restore, is_master=True):
     strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()
     with strategy.scope():
-        chars_encoder = get_chars_encoder()
-        spec_encoder = get_spec_encoder()
-        dataset = get_dataset(chars_encoder, spec_encoder)
-
-        model = get_model(chars_encoder, spec_encoder)
-        optimizer = K.optimizers.Adam(learning_rate=0.001)
-        model.compile(loss=K.losses.mean_squared_error, 
-                    optimizer=optimizer,
-                    metrics=[K.losses.mean_absolute_error]
-        )
-        checkpoint_path = path.join(config.CHECKPOINT_DIR, "keras", "model.ckpt")
-        if restore:
-            model.load_weights(checkpoint_path)
-
-
-        initial_epoch = model.optimizer.iterations.numpy() // config.STEPS_PER_EPOCH
+        encoders = get_encoders()
+        dataset = get_dataset(encoders)
         train_data = dataset.batch(config.BATCH_SIZE)
+
+        generator, _, _ = get_models(encoders)
+
+        checkpoint_path = path.join(config.CHECKPOINT_DIR, "keras", "generator.ckpt")
+        if restore:
+            generator.load_weights(checkpoint_path)
+
 
     callbacks = []
     if is_master:
-        model.summary()
+        generator.summary()
         stats_filename = datetime.now().strftime('%Y%m%d_%H%M') + ".csv"
         callbacks = [
             K.callbacks.CSVLogger(path.join(config.LOG_DIR, "stats", stats_filename)),
             # K.callbacks.ModelCheckpoint(filepath=checkpoint_path, save_weights_only=True),
-            EvaluationLogger(model, dataset, chars_encoder, spec_encoder)
+            EvaluationLogger(generator, dataset, encoders)
         ]
-
-    model.fit(train_data, epochs=config.NUM_EPOCHS, initial_epoch=initial_epoch,
+    initial_epoch = generator.optimizer.iterations.numpy() // config.STEPS_PER_EPOCH
+    generator.fit(train_data, epochs=config.NUM_EPOCHS, initial_epoch=initial_epoch,
                 steps_per_epoch=config.STEPS_PER_EPOCH,
                 callbacks=callbacks)
 

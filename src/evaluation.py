@@ -34,15 +34,15 @@ def plot_samples(charss, specs, gen_images, orig_images):
 
 class EvaluationLogger(K.callbacks.Callback):
 
-    def __init__(self, model, dataset, encoders):
-        self._model = model
+    def __init__(self, generator, dataset, encoders):
+        self._generator = generator
         self._data_iter = iter(dataset.batch(3))
         self._encoders = encoders
         
 
     def on_epoch_end(self, epoch, logs=None):   
         input_dict, images = next(self._data_iter)
-        gen_images = self._model(input_dict)
+        gen_images = self._generator(input_dict)
 
         gen_images = self._encoders.image.decode(gen_images)
         images = self._encoders.image.decode(images)
