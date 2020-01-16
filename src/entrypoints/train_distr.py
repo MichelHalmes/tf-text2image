@@ -50,9 +50,6 @@ def train(restore, is_master=True):
         chars_encoder = get_chars_encoder()
         spec_encoder = get_spec_encoder()
         dataset = get_dataset(chars_encoder, spec_encoder)
-        options = tf.data.Options()
-        options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.OFF
-        dataset = dataset.with_options(options)
 
         model = get_model(chars_encoder, spec_encoder)
         optimizer = K.optimizers.Adam(learning_rate=0.001)

@@ -39,12 +39,13 @@ def get_encode_text_fn(chars_encoder, spec_encoder):
     return encode_text_fn
 
 
-def get_format_img_fn():
+def get_format_img_fn(img_encoder):
     size = [config.IMAGE_H, config.IMAGE_W]
     def format_img(chars, spec, image):
         image = tf.image.resize(image, size)
         image = tf.image.convert_image_dtype(image, tf.float32)
-        image /= 255.  # Range between 0 and 1
+        image /= 255.  # Range between 0. and 1.
+        image = img_encoder.encode(image)  # normalize
         return chars, spec, image
 
     def format_img_fn(chars, spec, image):
@@ -69,15 +70,15 @@ def _iter_forever():
         cnt += 1
         yield cnt
 
-def get_dataset(chars_encoder, spec_encoder):
+def get_dataset(encoders):
     # We do all the work in the map functions so that the work can be better paralellized
     ds = tf.data.Dataset.from_generator(
         _iter_forever, 
         output_types=tf.int32, 
     )
     ds = ds.map(get_generate_fn())
-    ds = ds.map(get_encode_text_fn(chars_encoder, spec_encoder))
-    ds = ds.map(get_format_img_fn())
+    ds = ds.map(get_encode_text_fn(encoders.chars, encoders.spec))
+    ds = ds.map(get_format_img_fn(encoders.image))
     ds = ds.map(get_set_shapes_fn())
     return ds
 

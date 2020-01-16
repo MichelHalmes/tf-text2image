@@ -34,21 +34,23 @@ def plot_samples(charss, specs, gen_images, orig_images):
 
 class EvaluationLogger(K.callbacks.Callback):
 
-    def __init__(self, model, dataset, chars_encoder, spec_encoder):
+    def __init__(self, model, dataset, encoders):
         self._model = model
         self._data_iter = iter(dataset.batch(3))
-        self._chars_encoder = chars_encoder
-        self._spec_encoder = spec_encoder
+        self._encoders = encoders
         
 
     def on_epoch_end(self, epoch, logs=None):   
         input_dict, images = next(self._data_iter)
         gen_images = self._model(input_dict)
+
+        gen_images = self._encoders.image.decode(gen_images)
+        images = self._encoders.image.decode(images)
         # gen_images = tf.clip_by_value(gen_images, 0., 1.)
 
-        charss = [self._chars_encoder.decode(chars.numpy()) \
+        charss = [self._encoders.chars.decode(chars.numpy()) \
                         for chars in input_dict["chars"]]
-        specs = [self._spec_encoder.decode(spec.numpy()) \
+        specs = [self._encoders.spec.decode(spec.numpy()) \
                         for spec in input_dict["spec"]]
         plot_samples(charss, specs, gen_images, images)
 
