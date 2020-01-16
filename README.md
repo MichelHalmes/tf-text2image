@@ -26,9 +26,10 @@ Since the output of the generator is later fed into the disciminator of a GAN, w
 
 By analogy of the binary cross-entropy applied to the `sigmoid`, we suggest the following loss function:
 
-$L = - \frac{1}{2}[(1-y)\log(1-p) + (1+y)\log(1+p)]$
 
-Where $y$ represents the ground trouth value of the pixels, and $p=\tanh(x)$ is the prediction of the network, with $x$ representing the output of the last hidden layer ie. the logits.
+<img src="https://latex.codecogs.com/gif.latex?L&space;=&space;-&space;\frac{1}{2}\left&space;[(1-y)\log(1-p)&space;&plus;&space;(1&plus;y)\log(1&plus;p)\right]" title="L = - \frac{1}{2}\left [(1-y)\log(1-p) + (1+y)\log(1+p)\right]" />
+
+Where *y* represents the ground trouth value of the pixels, and *p=tanh(x)* is the prediction of the network, with *x* representing the output of the last hidden layer ie. the logits.
 
 
 
