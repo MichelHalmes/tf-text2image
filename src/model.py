@@ -33,7 +33,7 @@ def _get_text_rnn_model(encoders):
 
     texts_features = concatenate([chars_features, spec_features])
 
-    model = Model(inputs=[chars, spec], outputs=texts_features)
+    model = Model(inputs=[chars, spec], outputs=texts_features, name="text_rnn")
     return model
 
 def _get_generator_model(text_rnn):
@@ -47,15 +47,18 @@ def _get_generator_model(text_rnn):
     features = Dense(FEAT_HW*FEAT_HW*FEAT_C, activation="selu")(features)
     feature_map = Reshape((FEAT_HW, FEAT_HW, FEAT_C))(features)
 
+    # TODO: use_bias=false
     feature_map = Conv2DTranspose(filters=32, kernel_size=5, padding="same", strides=2, activation="relu")(feature_map)
     feature_map = Conv2DTranspose(filters=16, kernel_size=5, padding="same", strides=2, activation="relu")(feature_map)
     feature_map = Conv2DTranspose(filters=8, kernel_size=5, padding="same", strides=2, activation="relu")(feature_map)
     gen_image = Conv2DTranspose(filters=6, kernel_size=5, padding="same", strides=2, activation="relu")(feature_map)
     # We use tanh to help the model saturate the accepted color range.
     gen_image = Conv2D(filters=3, kernel_size=3, padding="same", activation="tanh")(gen_image)
+    # assert gen_image.shape == (None, config.IMAGE_H, config.IMAGE_W, 3)
+
     # gen_image =  Kb.clip(gen_image, -1., 1.)
 
-    model = Model(inputs=inputs, outputs=gen_image)
+    model = Model(inputs=inputs, outputs=gen_image, name="generator")
     optimizer = K.optimizers.Adam(learning_rate=0.001)
     model.compile(loss=tanh_cross_entropy,
                 optimizer=optimizer,
@@ -79,12 +82,9 @@ def _get_discriminator_model(text_rnn):
     features = LayerNormalization()(features)
     fc_hidden = Dense(1024, activation="selu")(features)
     fc_hidden = Dense(128, activation="selu")(fc_hidden)
-    p_not_fake = Dense(1, activation="sigmoid")(fc_hidden)
+    p_real = Dense(1, activation="sigmoid")(fc_hidden)
 
-
-    print(text_inputs)
-    print(image_input)
-    model = Model(inputs=text_inputs+[image_input], outputs=p_not_fake)
+    model = Model(inputs=text_inputs+[image_input], outputs=p_real, name="discriminator")
     optimizer = K.optimizers.Adam(learning_rate=0.0002)
     model.compile(loss=K.losses.binary_crossentropy,
                 optimizer=optimizer,
@@ -97,9 +97,9 @@ def _get_gan_model(generator, discriminator):
     gen_image = generator.output
 
     discriminator.trainable = False
-    p_not_fake = discriminator(text_inputs+[gen_image])
+    p_real = discriminator(text_inputs+[gen_image])
 
-    model = Model(inputs=text_inputs, outputs=p_not_fake)
+    model = Model(inputs=text_inputs, outputs=p_real, name="gan")
     optimizer = K.optimizers.Adam(learning_rate=0.0002)
     model.compile(loss=K.losses.binary_crossentropy,
                 optimizer=optimizer

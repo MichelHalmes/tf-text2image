@@ -12,11 +12,15 @@ def tanh_cross_entropy(y_true, y_pred):
         # We use the numerically stable method from logits
         return _tce_logit_abs(y_true, logits)
     else:
-        logging.warn("Caution using tce-loss without logits")
+        # logging.warn("Caution using tce-loss without logits") TODO: reactivate
         return _tce(y_true, y_pred)
 
+
 def _get_tanh_logits(y_pred):
-    if y_pred.op.type == "Tanh":
+    """ Tries to recover the logits from the opartion to use stable method """
+    if tf.executing_eagerly():
+        return False, None
+    elif y_pred.op.type == "Tanh":
         assert len(y_pred.op.inputs) == 1
         logits = y_pred.op.inputs[0]
         return True, logits
@@ -24,8 +28,7 @@ def _get_tanh_logits(y_pred):
         assert len(y_pred.op.inputs) == 1
         y_pred = y_pred.op.inputs[0]
         return _get_tanh_logits(y_pred)
-    else: 
-        print(y_pred.op.inputs[0].op.type)
+    else:
         return False, None
 
 

@@ -33,11 +33,11 @@ def train_distr(restore):
 
 
 def _init_process(restore, rank, size):
-    environ['TF_CONFIG'] = json.dumps({
-        'cluster': {
-            'worker': [f"localhost:1234{r}" for r in range(size)]
+    environ["TF_CONFIG"] = json.dumps({
+        "cluster": {
+            "worker": [f"localhost:1234{r}" for r in range(size)]
         },
-        'task': {'type': 'worker', 'index': rank}
+        "task": {"type": "worker", "index": rank}
     })
     is_master = rank==0
     train(restore, is_master)
@@ -60,7 +60,7 @@ def train(restore, is_master=True):
     callbacks = []
     if is_master:
         generator.summary()
-        stats_filename = datetime.now().strftime('%Y%m%d_%H%M') + ".csv"
+        stats_filename = datetime.now().strftime("%Y%m%d_%H%M") + ".csv"
         callbacks = [
             K.callbacks.CSVLogger(path.join(config.LOG_DIR, "stats", stats_filename)),
             # K.callbacks.ModelCheckpoint(filepath=checkpoint_path, save_weights_only=True),
