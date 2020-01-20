@@ -3,7 +3,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import (
     Input, Embedding, GRU, 
     concatenate, Reshape, Flatten, Dense,
-    LayerNormalization, LeakyReLU,
+    LayerNormalization, LeakyReLU, Activation,
     Conv2D, Conv2DTranspose    
 )
 import tensorflow.keras.backend as Kb
@@ -36,25 +36,37 @@ def _get_text_rnn_model(encoders):
     model = Model(inputs=[chars, spec], outputs=texts_features, name="text_rnn")
     return model
 
+
 def _get_generator_model(text_rnn):
+    # To avoid trivial solutions where the generator manipulates the feature generator,
+    # we only allow the disriminator to train the text_rnn
+    text_rnn.trainable = True ## TODO
     inputs = text_rnn.inputs
     texts_features = text_rnn(inputs)
 
     FEAT_HW = 8
     FEAT_C = 32
-    features = Dense(FEAT_HW*FEAT_C, activation="selu")(texts_features)
+    features = Dense(FEAT_HW*FEAT_C, use_bias=False)(texts_features)
     features = LayerNormalization()(features)
+    features = Activation("selu")(features)
     features = Dense(FEAT_HW*FEAT_HW*FEAT_C, activation="selu")(features)
     feature_map = Reshape((FEAT_HW, FEAT_HW, FEAT_C))(features)
 
-    # TODO: use_bias=false
-    feature_map = Conv2DTranspose(filters=32, kernel_size=5, padding="same", strides=2, activation="relu")(feature_map)
-    feature_map = Conv2DTranspose(filters=16, kernel_size=5, padding="same", strides=2, activation="relu")(feature_map)
-    feature_map = Conv2DTranspose(filters=8, kernel_size=5, padding="same", strides=2, activation="relu")(feature_map)
-    gen_image = Conv2DTranspose(filters=6, kernel_size=5, padding="same", strides=2, activation="relu")(feature_map)
+
+    def deconv(feature_map, n_out):
+        feature_map = Conv2DTranspose(filters=n_out, kernel_size=5, padding="same", strides=2, use_bias=False)(feature_map)
+        feature_map = LayerNormalization()(feature_map)
+        feature_map = LeakyReLU(alpha=0.1)(feature_map)
+        return feature_map
+
+    feature_map = deconv(feature_map, 32)
+    feature_map = deconv(feature_map, 16)
+    feature_map = deconv(feature_map, 8)
+    feature_map = deconv(feature_map, 6)
+
     # We use tanh to help the model saturate the accepted color range.
-    gen_image = Conv2D(filters=3, kernel_size=3, padding="same", activation="tanh")(gen_image)
-    # assert gen_image.shape == (None, config.IMAGE_H, config.IMAGE_W, 3)
+    gen_image = Conv2D(filters=3, kernel_size=3, padding="same", activation="tanh")(feature_map)
+    assert list(gen_image.shape) == [None, config.IMAGE_H, config.IMAGE_W, 3]
 
     # gen_image =  Kb.clip(gen_image, -1., 1.)
 
@@ -68,6 +80,9 @@ def _get_generator_model(text_rnn):
 
 
 def _get_discriminator_model(text_rnn):
+    # To avoid trivial solutions where the generator manipulates the feature generator,
+    # we only allow the disriminator to train the text_rnn
+    text_rnn.trainable = True
     text_inputs = text_rnn.inputs
     texts_features = text_rnn(text_inputs)
 
@@ -91,6 +106,7 @@ def _get_discriminator_model(text_rnn):
                 metrics=[K.metrics.binary_accuracy]
     )
     return model
+
 
 def _get_gan_model(generator, discriminator):
     text_inputs = generator.inputs

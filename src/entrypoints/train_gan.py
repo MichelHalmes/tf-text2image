@@ -56,30 +56,36 @@ class MetricsAccumulator(object):
         self._csv_file.flush()
         self._metric_values = defaultdict(list)
 
-
-
+_G = "gen"
+_D = "dis"
+TRAIN_G = (_G,)
+TRAIN_D = (_D,)
+TRAIN_GD = (_G, _D)
 
 def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
     # @tf.function TODO: avoid eager and use summary writer
-    def _train_on_batch(text_inputs_dict, images):
-        # Train discriminator on real images
-        inputs_dict = {"image": images, **text_inputs_dict}
-        labels = tf.ones(config.BATCH_SIZE)
-        d_loss_real = discriminator.train_on_batch(inputs_dict, labels)
-
-        # Train discriminator on fake images
+    def _train_on_batch(text_inputs_dict, images, train_part=TRAIN_GD):
         gen_images = generator(text_inputs_dict, training=False)
-        inputs_dict = {"image": gen_images, **text_inputs_dict}
-        labels = tf.zeros(config.BATCH_SIZE)
-        d_loss_fake = discriminator.train_on_batch(inputs_dict, labels)
-        accumulator.update(discriminator, [(l1+l2)*.5 for l1, l2 in zip(d_loss_fake, d_loss_real)])
-        # TODO: check if training fake & real at once is better
-        # TODO: check if discrimitator trainign should be skipped occasionally
+        if _D in train_part:
+            # Train discriminator on real images
+            inputs_dict = {"image": images, **text_inputs_dict}
+            labels = tf.ones(config.BATCH_SIZE)
+            d_loss_real = discriminator.train_on_batch(inputs_dict, labels)
+
+            # Train discriminator on fake images
+            inputs_dict = {"image": gen_images, **text_inputs_dict}
+            labels = tf.zeros(config.BATCH_SIZE)
+            d_loss_fake = discriminator.train_on_batch(inputs_dict, labels)
+
+            accumulator.update(discriminator, [(l1+l2)*.5 for l1, l2 in zip(d_loss_fake, d_loss_real)])
+            # TODO: check if training fake & real at once is better
+            # TODO: check if discrimitator trainign should be skipped occasionally
 
         # Train GAN
-        labels = tf.ones(config.BATCH_SIZE)
-        gan_loss= gan.train_on_batch(text_inputs_dict, labels)
-        accumulator.update(gan, gan_loss)
+        if _G in train_part:
+            labels = tf.ones(config.BATCH_SIZE)
+            gan_loss= gan.train_on_batch(text_inputs_dict, labels)
+            accumulator.update(gan, gan_loss)
         
         # Get generator metrics
         gen_loss = [f(images, gen_images).numpy() for f in generator.loss_functions+generator.metrics]
@@ -95,6 +101,10 @@ def train(restore):
     dataset = get_dataset(encoders)
     generator, discriminator, gan = get_models(encoders)
 
+    checkpoint_path = path.join(config.CHECKPOINT_DIR, "keras", "generator.ckpt")
+    if restore:
+        generator.load_weights(checkpoint_path)
+
     logger = EvaluationLogger(generator, dataset, encoders)
     accumulator = MetricsAccumulator(path.join(config.LOG_DIR, "stats"))
 
@@ -102,13 +112,14 @@ def train(restore):
     train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
     for epoch in range(config.NUM_EPOCHS):
         logging.info("Running epoch %s", epoch)
-        for i, (text_inputs_dict, images) in enumerate(train_data):
-            print(f"{i} completed", end="\r")
-            _train_on_batch_f(text_inputs_dict, images)
+        for b, (text_inputs_dict, images) in enumerate(train_data):
+            print(f"{b} completed", end="\r")
+            # train_discriminator = epoch <= 8 or b%8 == 0
+            train_part = TRAIN_D if epoch > 1 and epoch < 50 else TRAIN_GD
+            _train_on_batch_f(text_inputs_dict, images, train_part)
         accumulator.accumulate(epoch)
         logger.on_epoch_end(epoch)
             
-
 
 
 if __name__ == "__main__":

@@ -30,6 +30,7 @@ def plot_samples(charss, specs, gen_images, orig_images):
 
     fig_path = path.join(config.LOG_DIR, "evaluation.png")
     fig.savefig(fig_path)
+    plt.close(fig)
 
 
 class EvaluationLogger(K.callbacks.Callback):
@@ -46,7 +47,7 @@ class EvaluationLogger(K.callbacks.Callback):
 
         gen_images = self._encoders.image.decode(gen_images)
         images = self._encoders.image.decode(images)
-        # gen_images = tf.clip_by_value(gen_images, 0., 1.)
+        gen_images = tf.clip_by_value(gen_images, 0., 1.)
 
         charss = [self._encoders.chars.decode(chars.numpy()) \
                         for chars in input_dict["chars"]]
