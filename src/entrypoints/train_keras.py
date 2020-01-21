@@ -11,7 +11,7 @@ sys.path.append(path.abspath(path.join(__file__, "../../")))
 
 from data.dataset import get_dataset
 from data.encoders import get_encoders
-from model import get_models
+from model import get_generator
 import config
 from evaluation import EvaluationLogger
 
@@ -23,7 +23,7 @@ def train(restore):
     encoders = get_encoders()
     dataset = get_dataset(encoders)
 
-    generator, _, _ = get_models(encoders)
+    generator = get_generator(encoders)
 
     checkpoint_path = path.join(config.CHECKPOINT_DIR, "keras", "generator.ckpt")
     if restore:

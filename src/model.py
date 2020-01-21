@@ -12,10 +12,16 @@ import tensorflow.keras as K
 import config
 from utils import CustomSchedule, tanh_cross_entropy
 
+def get_generator(encoders):
+    text_rnn = _get_text_rnn_model(encoders)
+    generator = _get_generator_model(text_rnn, gen_trains_rnn=True)
+
+    return generator
+
 
 def get_models(encoders):
     text_rnn = _get_text_rnn_model(encoders)
-    generator = _get_generator_model(text_rnn)
+    generator = _get_generator_model(text_rnn, gen_trains_rnn=False)
     discriminator = _get_discriminator_model(text_rnn)
     gan = _get_gan_model(generator, discriminator)
 
@@ -37,19 +43,20 @@ def _get_text_rnn_model(encoders):
     return model
 
 
-def _get_generator_model(text_rnn):
-    # To avoid trivial solutions where the generator manipulates the feature generator,
-    # we only allow the disriminator to train the text_rnn
-    text_rnn.trainable = True ## TODO
+def _get_generator_model(text_rnn, gen_trains_rnn=False):
     inputs = text_rnn.inputs
     texts_features = text_rnn(inputs)
 
     FEAT_HW = 8
     FEAT_C = 32
-    features = Dense(FEAT_HW*FEAT_C, use_bias=False)(texts_features)
-    features = LayerNormalization()(features)
-    features = Activation("selu")(features)
-    features = Dense(FEAT_HW*FEAT_HW*FEAT_C, activation="selu")(features)
+    def dense(features, n_out):
+        features = Dense(n_out, use_bias=False)(features)
+        features = LayerNormalization()(features)
+        features = Activation("selu")(features)
+        return features
+
+    features = dense(texts_features, 2*2*config.RNN_SIZE)
+    features = dense(features, FEAT_HW*FEAT_HW*FEAT_C)
     feature_map = Reshape((FEAT_HW, FEAT_HW, FEAT_C))(features)
 
 
@@ -65,24 +72,24 @@ def _get_generator_model(text_rnn):
     feature_map = deconv(feature_map, 6)
 
     # We use tanh to help the model saturate the accepted color range.
-    gen_image = Conv2D(filters=3, kernel_size=3, padding="same", activation="tanh")(feature_map)
+    # gen_image = Conv2DTranspose(filters=3, kernel_size=5, padding="same", strides=2, activation="tanh")(feature_map)
+    gen_image = Conv2D(filters=3, kernel_size=5, padding="same", activation="tanh")(feature_map)
     assert list(gen_image.shape) == [None, config.IMAGE_H, config.IMAGE_W, 3]
-
-    # gen_image =  Kb.clip(gen_image, -1., 1.)
 
     model = Model(inputs=inputs, outputs=gen_image, name="generator")
     optimizer = K.optimizers.Adam(learning_rate=0.001)
+    # To avoid trivial solutions where the generator manipulates the feature generator,
+    # we only allow the disriminator to train the text_rnn
+    text_rnn.trainable = gen_trains_rnn
     model.compile(loss=tanh_cross_entropy,
                 optimizer=optimizer,
                 metrics=[K.losses.mean_squared_error, K.losses.mean_absolute_error]
     )
+    text_rnn.trainable = True 
     return model
 
 
 def _get_discriminator_model(text_rnn):
-    # To avoid trivial solutions where the generator manipulates the feature generator,
-    # we only allow the disriminator to train the text_rnn
-    text_rnn.trainable = True
     text_inputs = text_rnn.inputs
     texts_features = text_rnn(text_inputs)
 
@@ -112,14 +119,15 @@ def _get_gan_model(generator, discriminator):
     text_inputs = generator.inputs
     gen_image = generator.output
 
-    discriminator.trainable = False
     p_real = discriminator(text_inputs+[gen_image])
 
     model = Model(inputs=text_inputs, outputs=p_real, name="gan")
     optimizer = K.optimizers.Adam(learning_rate=0.0002)
+    discriminator.trainable = False
     model.compile(loss=K.losses.binary_crossentropy,
                 optimizer=optimizer
     )
+    discriminator.trainable = True
     return model
 
 

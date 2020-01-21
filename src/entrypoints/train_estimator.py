@@ -9,13 +9,13 @@ sys.path.append(path.abspath(path.join(__file__, "../../")))
 
 from data.dataset import get_dataset
 from data.encoders import get_encoders
-from model import get_models
+from model import get_generator
 import config
 
 def train():
     encoders = get_encoders()
 
-    generator, _, _ = get_models(encoders)
+    generator = get_generator(encoders)
 
     checkpoint_dir = path.join(config.CHECKPOINT_DIR, "tf")
     estimator = K.estimator.model_to_estimator(keras_model=generator, 
