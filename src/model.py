@@ -17,11 +17,6 @@ def get_generator(encoders):
     text_rnn = _get_text_rnn_model(encoders)
     generator = _get_generator_model(text_rnn, gen_trains_rnn=True)
 
-    generator.compile(loss=tanh_cross_entropy,
-                optimizer=K.optimizers.Adam(learning_rate=0.001),
-                metrics=[K.losses.mean_squared_error, K.losses.mean_absolute_error]
-    )
-
     print_model_summary(generator)
 
     return generator
@@ -79,7 +74,7 @@ def _get_generator_model(text_rnn, gen_trains_rnn=False):
     def deconv(feature_map, n_out):
         feature_map = Conv2DTranspose(filters=n_out, kernel_size=5, padding="same", strides=2, use_bias=False)(feature_map)
         feature_map = LayerNormalization()(feature_map)
-        feature_map = LeakyReLU(alpha=0.1)(feature_map)
+        feature_map = LeakyReLU(alpha=.1)(feature_map)
         return feature_map
 
     feature_map = deconv(feature_map, 32)
@@ -96,7 +91,7 @@ def _get_generator_model(text_rnn, gen_trains_rnn=False):
     # we only allow the disriminator to train the text_rnn
     text_rnn.trainable = False
     model.compile(loss=tanh_cross_entropy,
-                optimizer=K.optimizers.Adam(learning_rate=0.001),
+                optimizer=K.optimizers.Adam(learning_rate=.001),
                 metrics=[K.losses.mean_squared_error, K.losses.mean_absolute_error]
     )
     return model
@@ -108,28 +103,26 @@ def _get_discriminator_model(text_rnn):
 
     image_input = Input(shape=[config.IMAGE_H, config.IMAGE_W, 3], name="image")
     def conv(feature_map, n_filters):
-        feature_map = Conv2D(filters=4, kernel_size=3, padding="same", strides=2, use_bias=False)(feature_map)
-        feature_map = LayerNormalization()(feature_map)
-        feature_map = LeakyReLU(alpha=0.1)(feature_map)
+        feature_map = Conv2D(filters=n_filters, kernel_size=4, padding="same", strides=2, use_bias=False)(feature_map)
+        feature_map = LeakyReLU(alpha=.1)(feature_map)
         return feature_map
 
-    feature_map = conv(image_input, 8)
+    feature_map = conv(image_input, 4)
+    feature_map = conv(feature_map, 8)
     feature_map = conv(feature_map, 16)
     feature_map = conv(feature_map, 32)
     feature_map = conv(feature_map, 64)
-    feature_map = conv(feature_map, 128)
     image_features = Flatten()(feature_map)
 
     features = concatenate([image_features, texts_features])
     features = LayerNormalization()(features)
     fc_hidden = Dense(128, activation="selu")(features)
-    fc_hidden = Dense(16, activation="selu")(fc_hidden)
     p_real = Dense(1, activation="sigmoid")(fc_hidden)
 
     model = Model(inputs=text_inputs+[image_input], outputs=p_real, name="discriminator")
     text_rnn.trainable = False  # TODO
     model.compile(loss=K.losses.binary_crossentropy,
-                optimizer=K.optimizers.Adam(learning_rate=0.001),
+                optimizer=K.optimizers.Adam(learning_rate=.001),
                 metrics=[K.metrics.binary_accuracy]
     )
     return model
@@ -143,7 +136,7 @@ def _get_gan_model(generator, discriminator):
     model = Model(inputs=text_inputs, outputs=p_real, name="gan")
     discriminator.trainable = False
     model.compile(loss=K.losses.binary_crossentropy,
-                optimizer=K.optimizers.Adam(learning_rate=0.0002)
+                optimizer=K.optimizers.Adam(learning_rate=.0002)
     )
     return model
 
