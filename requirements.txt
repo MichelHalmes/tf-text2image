@@ -2,3 +2,4 @@ matplotlib
 tensorflow
 tensorflow_datasets
 click
+tabulate

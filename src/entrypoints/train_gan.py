@@ -66,6 +66,7 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
     # @tf.function TODO: avoid eager and use summary writer
     def _train_on_batch(text_inputs_dict, images, train_part=TRAIN_GD):
         gen_images = generator(text_inputs_dict, training=False)
+
         if _D in train_part:
             # Train discriminator on real images
             inputs_dict = {"image": images, **text_inputs_dict}
@@ -79,10 +80,11 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
 
             accumulator.update(discriminator, [(l1+l2)*.5 for l1, l2 in zip(d_loss_fake, d_loss_real)])
             # TODO: check if training fake & real at once is better
-            # TODO: check if discrimitator trainign should be skipped occasionally
+            # TODO: check if discrimitator training should be skipped occasionally
 
         # Train GAN
         if _G in train_part:
+            raise
             labels = tf.ones(config.BATCH_SIZE)
             gan_loss= gan.train_on_batch(text_inputs_dict, labels)
             accumulator.update(gan, gan_loss)
@@ -115,7 +117,7 @@ def train(restore):
         for b, (text_inputs_dict, images) in enumerate(train_data):
             print(f"{b} completed", end="\r")
             # train_discriminator = epoch <= 8 or b%8 == 0
-            train_part = TRAIN_D if epoch > 1 and epoch < 50 else TRAIN_GD
+            train_part = TRAIN_D  # if epoch > 1 and epoch < 50 else TRAIN_GD
             _train_on_batch_f(text_inputs_dict, images, train_part)
         accumulator.accumulate(epoch)
         logger.on_epoch_end(epoch)

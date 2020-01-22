@@ -1,5 +1,7 @@
 import logging
 
+from tabulate import tabulate
+
 import tensorflow.keras as K
 import tensorflow.keras.backend as Kb
 import tensorflow as tf
@@ -45,6 +47,29 @@ def _tce(y_true, y_pred):
         tce = (1. - y_true) * Kb.log(1. - y_pred + Kb.epsilon())
         tce += (1. + y_true) * Kb.log(1. + y_pred + Kb.epsilon())
         return -.5 * Kb.mean(tce, axis=-1)
+
+
+def _product(iterable):
+    p = 1
+    for n in iterable:
+        p *= n
+    return p
+
+
+def print_model_summary(model):
+    total_train_params, total_non_train_params = 0, 0
+    table = [["Class", "Name", "Input-Names", "Output-Shape", "Train-params", "Non-Train-Params"]]
+    for layer in model.layers:
+        nb_train_params = sum(_product(weight.shape) for weight in layer.trainable_variables)
+        total_train_params += nb_train_params
+        nb_non_train_params = sum(_product(weight.shape) for weight in layer.non_trainable_variables)
+        total_non_train_params += nb_non_train_params
+        table.append((layer.__class__.__name__, layer.name, getattr(layer, "input_names", None), layer.output_shape, nb_train_params, nb_non_train_params))
+    table.append(("_________",)*6)
+    table.append(("Model", model.name, model.input_names, model.output_shape, total_train_params, total_non_train_params)) 
+
+    print("\n", "#"*40, model.name.upper(), "#"*40)  
+    print(tabulate(table, headers="firstrow", stralign="right"), "\n")
  
 
 

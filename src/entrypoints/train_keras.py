@@ -28,8 +28,6 @@ def train(restore):
     checkpoint_path = path.join(config.CHECKPOINT_DIR, "keras", "generator.ckpt")
     if restore:
         generator.load_weights(checkpoint_path)
-    generator.summary()
-
 
     stats_filename = datetime.now().strftime('%Y%m%d_%H%M') + ".csv"
     callbacks = [
