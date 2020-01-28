@@ -73,7 +73,6 @@ def _iter_forever():
 
 def get_dataset(encoders):
     # We do all the work in the map functions so that the work can be better paralellized
-    random.seed(0)
     ds = tf.data.Dataset.from_generator(
         _iter_forever, 
         output_types=tf.int32, 

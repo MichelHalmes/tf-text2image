@@ -23,7 +23,7 @@ def train(restore):
     encoders = get_encoders()
     dataset = get_dataset(encoders)
 
-    generator = get_generator(encoders)
+    text_rnn, generator = get_generator(encoders)
 
     checkpoint_path = path.join(config.CHECKPOINT_DIR, "keras", "generator.ckpt")
     if restore:
@@ -44,6 +44,9 @@ def train(restore):
     generator.fit(train_data, epochs=config.NUM_EPOCHS, initial_epoch=initial_epoch,
                 # validation_data=val_data, 
                 callbacks=callbacks)
+
+    checkpoint_path = path.join(config.CHECKPOINT_DIR, "keras", "text_rnn.ckpt")
+    text_rnn.save_weights(checkpoint_path)
 
 
 

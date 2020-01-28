@@ -1,9 +1,11 @@
 import logging
 import sys
 from datetime import datetime
-from os import path
+from os import path, environ
 from collections import defaultdict
 import csv
+import random
+import numpy.random
 
 import click
 import tensorflow.keras as K
@@ -21,6 +23,10 @@ from evaluation import EvaluationLogger
 import numpy as np
 
 class MetricsAccumulator(object):
+
+    _FIELDS = ["epoch", "discriminator_loss", "discriminator_binary_accuracy", 
+            "gan_loss", "generator_loss", "generator_mean_squared_error", 
+            "generator_mean_absolute_error"]
 
     def __init__(self, log_dir):
         self._metric_values = defaultdict(list)
@@ -51,7 +57,8 @@ class MetricsAccumulator(object):
             bing = {f"{key}_{name}": value for name, value in zip(self._metric_names[key], values)}
             metrics_dict.update(bing)
         if self._csv_writer is None:
-            self._csv_writer = self._init_writer(metrics_dict.keys())
+            # self._csv_writer = self._init_writer(metrics_dict.keys())
+            self._csv_writer = self._init_writer(self._FIELDS)
         self._csv_writer.writerow(metrics_dict)
         self._csv_file.flush()
         self._metric_values = defaultdict(list)
@@ -70,7 +77,7 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
         if _D in train_part:
             # Train discriminator on real images
             inputs_dict = {"image": images, **text_inputs_dict}
-            labels = tf.ones(config.BATCH_SIZE)
+            labels = tf.ones(config.BATCH_SIZE)  # TODO: one-sided label smoothing
             d_loss_real = discriminator.train_on_batch(inputs_dict, labels)
 
             # Train discriminator on fake images
@@ -84,12 +91,12 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
 
         # Train GAN
         if _G in train_part:
-            raise
             labels = tf.ones(config.BATCH_SIZE)
-            gan_loss= gan.train_on_batch(text_inputs_dict, labels)
+            gan_loss = gan.train_on_batch(text_inputs_dict, labels)
             accumulator.update(gan, gan_loss)
         
         # Get generator metrics
+        generator.reset_metrics()
         gen_loss = [f(images, gen_images).numpy() for f in generator.loss_functions+generator.metrics]
         accumulator.update(generator, gen_loss)
     return _train_on_batch
@@ -101,23 +108,24 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
 def train(restore):
     encoders = get_encoders()
     dataset = get_dataset(encoders)
-    generator, discriminator, gan = get_models(encoders)
+    text_rnn, generator, discriminator, gan = get_models(encoders)
 
-    checkpoint_path = path.join(config.CHECKPOINT_DIR, "keras", "generator.ckpt")
+    checkpoint_path = path.join(config.CHECKPOINT_DIR, "keras", "text_rnn.ckpt")
     if restore:
-        generator.load_weights(checkpoint_path)
+        text_rnn.load_weights(checkpoint_path)
 
     logger = EvaluationLogger(generator, dataset, encoders)
     accumulator = MetricsAccumulator(path.join(config.LOG_DIR, "stats"))
 
     _train_on_batch_f = _get_train_on_batch_f(generator, discriminator, gan, accumulator)
     train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
+
     for epoch in range(config.NUM_EPOCHS):
         logging.info("Running epoch %s", epoch)
         for b, (text_inputs_dict, images) in enumerate(train_data):
             print(f"{b} completed", end="\r")
-            # train_discriminator = epoch <= 8 or b%8 == 0
-            train_part = TRAIN_D  # if epoch > 1 and epoch < 50 else TRAIN_GD
+            train_part = TRAIN_D if epoch < 2 else \
+                        TRAIN_GD  # if b%2 == 0 else TRAIN_G
             _train_on_batch_f(text_inputs_dict, images, train_part)
         accumulator.accumulate(epoch)
         logger.on_epoch_end(epoch)
@@ -129,5 +137,10 @@ if __name__ == "__main__":
         stream=sys.stdout,
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s")
+
+    random.seed(0)
+    numpy.random.seed(0)
+    tf.random.set_seed(0)
+    environ["TF_DETERMINISTIC_OPS"] = "1"
 
     train()

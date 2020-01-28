@@ -8,6 +8,7 @@ from tensorflow.keras.layers import (
 )
 import tensorflow.keras.backend as Kb
 import tensorflow.keras as K
+import tensorflow as tf
 
 import config
 from utils import CustomSchedule, tanh_cross_entropy, print_model_summary
@@ -19,7 +20,7 @@ def get_generator(encoders):
 
     print_model_summary(generator)
 
-    return generator
+    return text_rnn, generator
 
 
 def get_models(encoders):
@@ -32,7 +33,7 @@ def get_models(encoders):
     print_model_summary(discriminator)
     print_model_summary(gan)
 
-    return generator, discriminator, gan
+    return text_rnn, generator, discriminator, gan
 
 def  _get_text_inputs():
     chars = Input(shape=[None], name="chars")
@@ -122,7 +123,7 @@ def _get_discriminator_model(text_rnn):
     model = Model(inputs=text_inputs+[image_input], outputs=p_real, name="discriminator")
     text_rnn.trainable = False  # TODO
     model.compile(loss=K.losses.binary_crossentropy,
-                optimizer=K.optimizers.Adam(learning_rate=.001),
+                optimizer=K.optimizers.Adam(learning_rate=.0001, beta_1=.5),
                 metrics=[K.metrics.binary_accuracy]
     )
     return model
@@ -136,7 +137,7 @@ def _get_gan_model(generator, discriminator):
     model = Model(inputs=text_inputs, outputs=p_real, name="gan")
     discriminator.trainable = False
     model.compile(loss=K.losses.binary_crossentropy,
-                optimizer=K.optimizers.Adam(learning_rate=.0002)
+                optimizer=K.optimizers.Adam(learning_rate=.0001, beta_1=.5)
     )
     return model
 
