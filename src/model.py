@@ -3,7 +3,8 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import (
     Input, Embedding, GRU, 
     concatenate, Reshape, Flatten, Dense,
-    LayerNormalization, LeakyReLU, Activation,
+    LayerNormalization, BatchNormalization, Dropout,
+    LeakyReLU, Activation,
     Conv2D, Conv2DTranspose    
 )
 import tensorflow.keras.backend as Kb
@@ -47,29 +48,25 @@ def _get_text_rnn_model(encoders):
     chars_embed = Embedding(input_dim=encoders.chars.vocab_size, output_dim=config.EMBED_SIZE)(chars)
     chars_features = GRU(config.RNN_SIZE)(chars_embed)
 
-    spec_embed = Embedding(input_dim=encoders.spec.vocab_size, output_dim=config.EMBED_SIZE)(spec)
-    spec_features = GRU(config.RNN_SIZE)(spec_embed)
+    spec_embed = Embedding(input_dim=encoders.spec.vocab_size, output_dim=config.EMBED_SIZE//2)(spec)
+    spec_features = GRU(config.RNN_SIZE//2)(spec_embed)
 
     texts_features = concatenate([chars_features, spec_features])
+    texts_features = Dense(4*config.RNN_SIZE, use_bias=False)(texts_features)
+    texts_features = LayerNormalization()(texts_features)
+    texts_features = Activation("selu")(texts_features)
 
     model = Model(inputs=[chars, spec], outputs=texts_features, name="text_rnn")
     return model
 
 
-def _get_generator_model(text_rnn, gen_trains_rnn=False):
+def _get_generator_model(text_rnn, gen_trains_rnn):
     text_inputs = _get_text_inputs()
     texts_features = text_rnn(text_inputs)
 
     FEAT_HW = 8
     FEAT_C = 32
-    def dense(features, n_out):
-        features = Dense(n_out, use_bias=False)(features)
-        features = LayerNormalization()(features)
-        features = Activation("selu")(features)
-        return features
-
-    features = dense(texts_features, 4*texts_features.shape[-1])
-    features = dense(features, FEAT_HW*FEAT_HW*FEAT_C)
+    features = Dense(FEAT_HW*FEAT_HW*FEAT_C)(texts_features)
     feature_map = Reshape((FEAT_HW, FEAT_HW, FEAT_C))(features)
 
     def deconv(feature_map, n_out):
@@ -81,16 +78,15 @@ def _get_generator_model(text_rnn, gen_trains_rnn=False):
     feature_map = deconv(feature_map, 32)
     feature_map = deconv(feature_map, 16)
     feature_map = deconv(feature_map, 8)
-    feature_map = deconv(feature_map, 6)
 
     # We use tanh to help the model saturate the accepted color range.
-    gen_image = Conv2D(filters=3, kernel_size=5, padding="same", activation="tanh")(feature_map)
+    gen_image = Conv2DTranspose(filters=3, kernel_size=5, padding="same", strides=2, activation="tanh")(feature_map)
     assert list(gen_image.shape) == [None, config.IMAGE_H, config.IMAGE_W, 3]
 
     model = Model(inputs=text_inputs, outputs=gen_image, name="generator")
     # To avoid trivial solutions where the generator manipulates the feature generator,
     # we only allow the disriminator to train the text_rnn
-    text_rnn.trainable = False
+    text_rnn.trainable = gen_trains_rnn
     model.compile(loss=tanh_cross_entropy,
                 optimizer=K.optimizers.Adam(learning_rate=.001),
                 metrics=[K.losses.mean_squared_error, K.losses.mean_absolute_error]
@@ -104,8 +100,9 @@ def _get_discriminator_model(text_rnn):
 
     image_input = Input(shape=[config.IMAGE_H, config.IMAGE_W, 3], name="image")
     def conv(feature_map, n_filters):
-        feature_map = Conv2D(filters=n_filters, kernel_size=4, padding="same", strides=2, use_bias=False)(feature_map)
+        feature_map = Conv2D(filters=n_filters, kernel_size=4, padding="same", strides=2)(feature_map)
         feature_map = LeakyReLU(alpha=.1)(feature_map)
+        feature_map = Dropout(.3)(feature_map)
         return feature_map
 
     feature_map = conv(image_input, 4)
@@ -117,14 +114,13 @@ def _get_discriminator_model(text_rnn):
 
     features = concatenate([image_features, texts_features])
     features = LayerNormalization()(features)
-    fc_hidden = Dense(128, activation="selu")(features)
-    p_real = Dense(1, activation="sigmoid")(fc_hidden)
+    logits_p_real = Dense(1)(features)
 
-    model = Model(inputs=text_inputs+[image_input], outputs=p_real, name="discriminator")
+    model = Model(inputs=text_inputs+[image_input], outputs=logits_p_real, name="discriminator")
     text_rnn.trainable = False  # TODO
-    model.compile(loss=K.losses.binary_crossentropy,
+    model.compile(loss=K.losses.BinaryCrossentropy(from_logits=True),
                 optimizer=K.optimizers.Adam(learning_rate=.0001, beta_1=.5),
-                metrics=[K.metrics.binary_accuracy]
+                metrics=[K.metrics.BinaryAccuracy(threshold=.0)]  # Since we output logits, threshold .0 corresponds to .5 on the sigmoid
     )
     return model
 
@@ -132,11 +128,11 @@ def _get_discriminator_model(text_rnn):
 def _get_gan_model(generator, discriminator):
     text_inputs = _get_text_inputs()
     gen_image = generator(text_inputs)
-    p_real = discriminator(text_inputs+[gen_image])
+    logits_p_real = discriminator(text_inputs+[gen_image])
     
-    model = Model(inputs=text_inputs, outputs=p_real, name="gan")
+    model = Model(inputs=text_inputs, outputs=logits_p_real, name="gan")
     discriminator.trainable = False
-    model.compile(loss=K.losses.binary_crossentropy,
+    model.compile(loss=K.losses.BinaryCrossentropy(from_logits=True),
                 optimizer=K.optimizers.Adam(learning_rate=.0001, beta_1=.5)
     )
     return model

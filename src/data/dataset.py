@@ -6,20 +6,12 @@ import config
 from data.generate import generate_sample
 
 
-# def get_encode_text_fn(encoder):
-#     # @tf.function
-#     def encode(chars, spec, image):
-#         print(chars)
-#         encoded_chars = encoder.encode(chars.numpy())
-#         return encoded_chars, spec, image
-#     return encode
-
 def get_generate_fn():
     def generate(_):
         chars, spec, image = generate_sample()
         # chars += config.EOS_CHAR
         # spec += " "+config.EOS_CHAR
-        # TODO: Retry with EOS fir variabel length inputs
+        # TODO: Retry with EOS for variable length inputs
         return chars, spec, image 
 
     def generate_fn(_):
@@ -47,6 +39,11 @@ def get_format_img_fn(img_encoder):
         image = tf.image.convert_image_dtype(image, tf.float32)
         image /= 255.  # Range between 0. and 1.
         image = img_encoder.encode(image)  # normalize
+
+        # TODO: remove
+        image += tf.random.truncated_normal(image.shape, stddev=.2)
+        image = tf.clip_by_value(image, -1., 1.)
+
         return chars, spec, image
 
     def format_img_fn(chars, spec, image):

@@ -112,6 +112,7 @@ def train(restore):
 
     checkpoint_path = path.join(config.CHECKPOINT_DIR, "keras", "text_rnn.ckpt")
     if restore:
+        # generator.load_weights(checkpoint_path)
         text_rnn.load_weights(checkpoint_path)
 
     logger = EvaluationLogger(generator, dataset, encoders)
