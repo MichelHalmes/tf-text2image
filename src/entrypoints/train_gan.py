@@ -1,9 +1,7 @@
 import logging
 import sys
-from datetime import datetime
 from os import path, environ
-from collections import defaultdict
-import csv
+
 import random
 import numpy.random
 
@@ -17,57 +15,18 @@ from data.dataset import get_dataset
 from data.encoders import get_encoders
 from model import get_models
 import config
-from evaluation import EvaluationLogger
+from evaluation import EvaluationLogger, MetricsAccumulator
+from losses import clip_weights
 
 
-import numpy as np
-
-class MetricsAccumulator(object):
-
-    _FIELDS = ["epoch", "discriminator_loss", "discriminator_binary_accuracy", 
-            "gan_loss", "generator_loss", "generator_mean_squared_error", 
-            "generator_mean_absolute_error"]
-
-    def __init__(self, log_dir):
-        self._metric_values = defaultdict(list)
-        self._metric_names = {}
-        stats_filename = datetime.now().strftime('%Y%m%d_%H%M') + ".csv"
-        stats_path = path.join(log_dir, stats_filename)
-        self._csv_file = open(stats_path, "w")
-        self._csv_writer =  None
-
-    def _init_writer(self, field_names):
-        writer = csv.DictWriter(self._csv_file, fieldnames=field_names)
-        writer.writeheader()
-        return writer
-
-    def update(self, model, metrics):
-        if not isinstance(metrics, list):
-            metrics = [metrics]
-
-        key = model.name
-        self._metric_values[key].append(metrics)
-        self._metric_names[key] = model.metrics_names
-
-    def accumulate(self, epoch):
-        metrics_dict = {"epoch": epoch}
-        for key, values in self._metric_values.items():
-            values = np.array(values)
-            values = np.mean(values, axis=0).tolist()
-            bing = {f"{key}_{name}": value for name, value in zip(self._metric_names[key], values)}
-            metrics_dict.update(bing)
-        if self._csv_writer is None:
-            # self._csv_writer = self._init_writer(metrics_dict.keys())
-            self._csv_writer = self._init_writer(self._FIELDS)
-        self._csv_writer.writerow(metrics_dict)
-        self._csv_file.flush()
-        self._metric_values = defaultdict(list)
 
 _G = "gen"
 _D = "dis"
 TRAIN_G = (_G,)
 TRAIN_D = (_D,)
 TRAIN_GD = (_G, _D)
+_SOFT_ONE = 1.
+_W_CLIP_VALUE = .01
 
 def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
     # @tf.function TODO: avoid eager and use summary writer
@@ -75,9 +34,9 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
         gen_images = generator(text_inputs_dict, training=False)
 
         if _D in train_part:
-            # Train discriminator on real images
+            # Train discriminator on real & fake images
             inputs_dict = {"image": images, **text_inputs_dict}
-            labels = tf.ones(config.BATCH_SIZE)  # TODO: one-sided label smoothing
+            labels = tf.ones(config.BATCH_SIZE)*_SOFT_ONE
             d_loss_real = discriminator.train_on_batch(inputs_dict, labels)
 
             # Train discriminator on fake images
@@ -86,8 +45,10 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
             d_loss_fake = discriminator.train_on_batch(inputs_dict, labels)
 
             accumulator.update(discriminator, [(l1+l2)*.5 for l1, l2 in zip(d_loss_fake, d_loss_real)])
+            # clip_weights(discriminator, _W_CLIP_VALUE) TODO
             # TODO: check if training fake & real at once is better
             # TODO: check if discrimitator training should be skipped occasionally
+            # TODO: check where to apply Label-Smoothing
 
         # Train GAN
         if _G in train_part:
@@ -112,7 +73,6 @@ def train(restore):
 
     checkpoint_path = path.join(config.CHECKPOINT_DIR, "keras", "text_rnn.ckpt")
     if restore:
-        # generator.load_weights(checkpoint_path)
         text_rnn.load_weights(checkpoint_path)
 
     logger = EvaluationLogger(generator, dataset, encoders)
@@ -125,8 +85,8 @@ def train(restore):
         logging.info("Running epoch %s", epoch)
         for b, (text_inputs_dict, images) in enumerate(train_data):
             print(f"{b} completed", end="\r")
-            train_part = TRAIN_D if epoch < 2 else \
-                        TRAIN_GD  # if b%2 == 0 else TRAIN_G
+            train_part = TRAIN_D if epoch < 5 else \
+                        TRAIN_GD # if b%6 == 0 else TRAIN_D
             _train_on_batch_f(text_inputs_dict, images, train_part)
         accumulator.accumulate(epoch)
         logger.on_epoch_end(epoch)

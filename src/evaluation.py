@@ -1,9 +1,12 @@
-
+from collections import defaultdict
 from os import path
+import csv
+from datetime import datetime
 
 import tensorflow.keras as K
 import tensorflow as tf
 import matplotlib.pyplot as plt
+import numpy as np
 
 import config
 
@@ -55,5 +58,46 @@ class EvaluationLogger(K.callbacks.Callback):
                         for spec in input_dict["spec"]]
         plot_samples(charss, specs, gen_images, images)
 
+
+class MetricsAccumulator(object):
+
+    _FIELDS = ["epoch", "discriminator_loss", "discriminator_binary_accuracy", 
+            "gan_loss", "generator_loss", "generator_mean_squared_error", 
+            "generator_mean_absolute_error"]
+
+    def __init__(self, log_dir):
+        self._metric_values = defaultdict(list)
+        self._metric_names = {}
+        stats_filename = datetime.now().strftime('%Y%m%d_%H%M') + ".csv"
+        stats_path = path.join(log_dir, stats_filename)
+        self._csv_file = open(stats_path, "w")
+        self._csv_writer =  None
+
+    def _init_writer(self, field_names):
+        writer = csv.DictWriter(self._csv_file, fieldnames=field_names)
+        writer.writeheader()
+        return writer
+
+    def update(self, model, metrics):
+        if not isinstance(metrics, list):
+            metrics = [metrics]
+
+        key = model.name
+        self._metric_values[key].append(metrics)
+        self._metric_names[key] = model.metrics_names
+
+    def accumulate(self, epoch):
+        metrics_dict = {"epoch": epoch}
+        for key, values in self._metric_values.items():
+            values = np.array(values)
+            values = np.mean(values, axis=0).tolist()
+            bing = {f"{key}_{name}": value for name, value in zip(self._metric_names[key], values)}
+            metrics_dict.update(bing)
+        if self._csv_writer is None:
+            # self._csv_writer = self._init_writer(metrics_dict.keys())
+            self._csv_writer = self._init_writer(self._FIELDS)
+        self._csv_writer.writerow(metrics_dict)
+        self._csv_file.flush()
+        self._metric_values = defaultdict(list)
 
 

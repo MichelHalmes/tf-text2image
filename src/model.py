@@ -12,8 +12,9 @@ import tensorflow.keras as K
 import tensorflow as tf
 
 import config
-from utils import CustomSchedule, tanh_cross_entropy, print_model_summary
-
+from utils import CustomSchedule, print_model_summary
+from losses import tanh_cross_entropy, wasserstein_loss, binary_crossentropy, alternative_binary_crossentropy
+from minibatch_discrim import MinibatchDiscrimination
 
 def get_generator(encoders):
     text_rnn = _get_text_rnn_model(encoders)
@@ -64,7 +65,7 @@ def _get_generator_model(text_rnn, gen_trains_rnn):
     text_inputs = _get_text_inputs()
     texts_features = text_rnn(text_inputs)
 
-    FEAT_HW = 8
+    FEAT_HW = 4
     FEAT_C = 32
     features = Dense(FEAT_HW*FEAT_HW*FEAT_C)(texts_features)
     feature_map = Reshape((FEAT_HW, FEAT_HW, FEAT_C))(features)
@@ -77,7 +78,6 @@ def _get_generator_model(text_rnn, gen_trains_rnn):
 
     feature_map = deconv(feature_map, 32)
     feature_map = deconv(feature_map, 16)
-    feature_map = deconv(feature_map, 8)
 
     # We use tanh to help the model saturate the accepted color range.
     gen_image = Conv2DTranspose(filters=3, kernel_size=5, padding="same", strides=2, activation="tanh")(feature_map)
@@ -98,27 +98,35 @@ def _get_discriminator_model(text_rnn):
     text_inputs = _get_text_inputs()
     texts_features = text_rnn(text_inputs)
 
-    image_input = Input(shape=[config.IMAGE_H, config.IMAGE_W, 3], name="image")
     def conv(feature_map, n_filters):
         feature_map = Conv2D(filters=n_filters, kernel_size=4, padding="same", strides=2)(feature_map)
         feature_map = LeakyReLU(alpha=.1)(feature_map)
         feature_map = Dropout(.3)(feature_map)
         return feature_map
 
-    feature_map = conv(image_input, 4)
-    feature_map = conv(feature_map, 8)
-    feature_map = conv(feature_map, 16)
-    feature_map = conv(feature_map, 32)
-    feature_map = conv(feature_map, 64)
-    image_features = Flatten()(feature_map)
+    image_input = Input(shape=[config.IMAGE_H, config.IMAGE_W, 3], name="image")
 
-    features = concatenate([image_features, texts_features])
-    features = LayerNormalization()(features)
+    feature_map = image_input
+    feature_map = conv(feature_map, 16)  #16
+
+    texts_feature_map = Dense(16*16*4)(texts_features)
+    texts_feature_map = Reshape((16, 16, 4))(texts_feature_map)
+    feature_map = concatenate([feature_map, texts_feature_map])
+
+    feature_map = conv(feature_map, 32)  #8
+    feature_map = conv(feature_map, 64)  #4
+
+    feature_map = Conv2D(filters=32, kernel_size=1, padding="same", strides=1, activation=LeakyReLU(alpha=.1))(feature_map)
+
+    image_features = Flatten()(feature_map)
+    minibatch_features = MinibatchDiscrimination(num_kernels=20)(image_features)
+
+    features = concatenate([image_features, minibatch_features, texts_features])
     logits_p_real = Dense(1)(features)
 
     model = Model(inputs=text_inputs+[image_input], outputs=logits_p_real, name="discriminator")
     text_rnn.trainable = False  # TODO
-    model.compile(loss=K.losses.BinaryCrossentropy(from_logits=True),
+    model.compile(loss=binary_crossentropy,
                 optimizer=K.optimizers.Adam(learning_rate=.0001, beta_1=.5),
                 metrics=[K.metrics.BinaryAccuracy(threshold=.0)]  # Since we output logits, threshold .0 corresponds to .5 on the sigmoid
     )
@@ -132,7 +140,7 @@ def _get_gan_model(generator, discriminator):
     
     model = Model(inputs=text_inputs, outputs=logits_p_real, name="gan")
     discriminator.trainable = False
-    model.compile(loss=K.losses.BinaryCrossentropy(from_logits=True),
+    model.compile(loss=binary_crossentropy,
                 optimizer=K.optimizers.Adam(learning_rate=.0001, beta_1=.5)
     )
     return model

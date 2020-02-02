@@ -78,21 +78,21 @@ Both cases *`h<0`* and *`h>0`* can be rewritten as follows, where we drop the co
 
 We train the generator for 500 epochs (each epoch is made of 64 batches of size 16) and get the following convergence.
 
-<img src="media/G_train.png" alt="G_train" width="300">
+<img src="media/G_train.png" alt="G_train" width="400">
 
-Since our data is generated synthetically, it covers the whole input space ie it contains all possible combinations of `chars`and `spec`.
+Since our data is generated synthetically, it covers the whole input space ie it contains all possible combinations of `chars` and `spec`.
 We can therefore safely evaluate the model on the training data (we verify indeed that the metrics on a separate validation set are indistinguishable from the training set).
 
 A sample of generated image can be seen below:
 
 <p float="center">
-<img src="media/evaluation_1.png" alt="evaluation_1" width="300">
-<img src="media/evaluation_2.png" alt="evaluation_2" width="300">
-<img src="media/evaluation_3.png" alt="evaluation_3" width="300">
+<img src="media/evaluation_1.png" alt="evaluation_1" width="250">
+<img src="media/evaluation_2.png" alt="evaluation_2" width="250">
+<img src="media/evaluation_3.png" alt="evaluation_3" width="250">
 </p>
 
 ### Discriminator
 
 We also train a discriminator using the converged generator. We observe that near 100% accuracy can be achieved after only a few epochs:
 
-<img src="media/D_train.png" alt="D_train" width="300">
+<img src="media/D_train.png" alt="D_train" width="400">
