@@ -16,8 +16,7 @@ from data.encoders import get_encoders
 from model import get_models
 import config
 from evaluation import EvaluationLogger, MetricsAccumulator
-from losses import clip_weights
-
+from losses import clip_weights, GradientPenalizer
 
 
 _G = "gen"
@@ -26,29 +25,32 @@ TRAIN_G = (_G,)
 TRAIN_D = (_D,)
 TRAIN_GD = (_G, _D)
 _SOFT_ONE = 1.
-_W_CLIP_VALUE = .01
+# _W_CLIP_VALUE = .01
 
 def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
     # @tf.function TODO: avoid eager and use summary writer
-    def _train_on_batch(text_inputs_dict, images, train_part=TRAIN_GD):
-        gen_images = generator(text_inputs_dict, training=False)
+    gradient_penalizer = GradientPenalizer(discriminator)
+    def _train_on_batch(text_inputs_dict, real_images, train_part=TRAIN_GD):
+        fake_images = generator(text_inputs_dict, training=False)
 
         if _D in train_part:
             # Train discriminator on real & fake images
-            inputs_dict = {"image": images, **text_inputs_dict}
+            inputs_dict = {"image": real_images, **text_inputs_dict}
             labels = tf.ones(config.BATCH_SIZE)*_SOFT_ONE
             d_loss_real = discriminator.train_on_batch(inputs_dict, labels)
+            accumulator.update(discriminator, d_loss_real)
+            gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, fake_images)
+            accumulator.update(gradient_penalizer, gp_loss)
 
             # Train discriminator on fake images
-            inputs_dict = {"image": gen_images, **text_inputs_dict}
+            inputs_dict = {"image": fake_images, **text_inputs_dict}
             labels = tf.zeros(config.BATCH_SIZE)
             d_loss_fake = discriminator.train_on_batch(inputs_dict, labels)
+            accumulator.update(discriminator, d_loss_fake)
+            gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, fake_images)
+            accumulator.update(gradient_penalizer, gp_loss)
 
-            accumulator.update(discriminator, [(l1+l2)*.5 for l1, l2 in zip(d_loss_fake, d_loss_real)])
-            # clip_weights(discriminator, _W_CLIP_VALUE) TODO
-            # TODO: check if training fake & real at once is better
-            # TODO: check if discrimitator training should be skipped occasionally
-            # TODO: check where to apply Label-Smoothing
+            # accumulator.update(discriminator, [(l1+l2)*.5 for l1, l2 in zip(d_loss_fake, d_loss_real)])
 
         # Train GAN
         if _G in train_part:
@@ -58,7 +60,7 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
         
         # Get generator metrics
         generator.reset_metrics()
-        gen_loss = [f(images, gen_images).numpy() for f in generator.loss_functions+generator.metrics]
+        gen_loss = [f(real_images, fake_images).numpy() for f in generator.loss_functions+generator.metrics]
         accumulator.update(generator, gen_loss)
     return _train_on_batch
 

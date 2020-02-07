@@ -1,8 +1,9 @@
 import tensorflow.keras.backend as Kb
 import tensorflow.keras as K
 import tensorflow as tf
-
 import numpy as np
+
+import config
 
 ##   TANH CROSS ENTROPY   ##
 
@@ -51,7 +52,7 @@ def _tce(y_true, y_pred):
 
 def wasserstein_loss(y_true, y_pred):
     """ y_pred: ``logit``=f in the paper
-        y_true: (fake, real)=(0, 1)
+        y_true: (fake, real) = (0, 1)
             should be mapped to the multipliers for f: (1, -1)
     """
     multiplier = y_true*-2. + 1.
@@ -59,11 +60,62 @@ def wasserstein_loss(y_true, y_pred):
 
 
 def clip_weights(network, clip_value):
-    """ Used in combination with Wasserstein loss """
+    """ Used in combination with Wasserstein loss: https://arxiv.org/abs/1701.07875 """
     for layer in network.layers:
         weights = layer.get_weights()
         weights = [np.clip(w, -clip_value, clip_value) for w in weights]
         layer.set_weights(weights)
+
+class GradientPenalizer(object):
+    """ Implementation of: https://arxiv.org/abs/1704.00028
+        This is the most elegant solution I could come up with:
+        https://github.com/tensorflow/tensorflow/issues/36436
+    """
+
+    def __init__(self, discriminator):
+        self._discriminator = discriminator
+        self._optimizer = K.optimizers.Adam(learning_rate=config.DIS_LR, beta_1=config.DIS_BETA_1)
+        self.name = "gradient_penalizer"
+        self.metrics_names = ["rms"]
+
+    # Cannot be a tf.function since we declare a variable... :-(
+    def run_on_batch(self, text_inputs, real_images, fake_images):
+        interpolated_images = self._interpolate_images(real_images, fake_images)
+        return self.run_step(text_inputs, interpolated_images)
+
+    @tf.function
+    def run_step(self, text_inputs, interpolated_images):
+        with tf.GradientTape() as tape:
+            gradients = self._compute_gradients(interpolated_images, text_inputs)
+            gradient_penalty = self._compute_gradient_penalty(gradients)
+
+        trainable_vars = self._discriminator.trainable_variables
+        disc_gradients = tape.gradient(gradient_penalty, trainable_vars)
+        self._optimizer.apply_gradients(zip(disc_gradients, trainable_vars))
+        return gradient_penalty #.numpy()
+    
+    def _interpolate_images(self, real_images, fake_images):
+        eps = Kb.random_uniform([config.BATCH_SIZE, 1, 1, 1])
+        interpolated_images = eps * real_images + (1 - eps) * fake_images
+        interpolated_images = tf.Variable(interpolated_images)
+        return interpolated_images
+
+    def _compute_gradients(self, interpolated_images, text_inputs):
+        with tf.GradientTape() as tape:
+            inputs_dict = {"image": interpolated_images, **text_inputs}
+            # Somehow feeding the dict does not work...
+            inputs = [inputs_dict["chars"], inputs_dict["spec"], inputs_dict["image"]]
+            interpolated_logits = self._discriminator(inputs, training=True)
+        gradients = tape.gradient(interpolated_logits, [interpolated_images])
+        return gradients[0]
+
+    def _compute_gradient_penalty(self, gradients):
+        gradients_sqr = Kb.square(gradients)
+        gradients_sqr_sum = Kb.sum(gradients_sqr,
+                                axis=np.arange(1, len(gradients_sqr.shape)))
+        gradient_l2_norm = Kb.sqrt(gradients_sqr_sum)
+        gradient_penalty = Kb.mean(Kb.square(1. - gradient_l2_norm))
+        return gradient_penalty
 
 ## LOSS FROM ORIGINAL GAN PAPER ##
     

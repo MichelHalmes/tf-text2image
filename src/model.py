@@ -88,7 +88,7 @@ def _get_generator_model(text_rnn, gen_trains_rnn):
     # we only allow the disriminator to train the text_rnn
     text_rnn.trainable = gen_trains_rnn
     model.compile(loss=tanh_cross_entropy,
-                optimizer=K.optimizers.Adam(learning_rate=.001),
+                optimizer=K.optimizers.Adam(learning_rate=config.GEN_LR),
                 metrics=[K.losses.mean_squared_error, K.losses.mean_absolute_error]
     )
     return model
@@ -127,7 +127,7 @@ def _get_discriminator_model(text_rnn):
     model = Model(inputs=text_inputs+[image_input], outputs=logits_p_real, name="discriminator")
     text_rnn.trainable = False  # TODO
     model.compile(loss=binary_crossentropy,
-                optimizer=K.optimizers.Adam(learning_rate=.0001, beta_1=.5),
+                optimizer=K.optimizers.Adam(learning_rate=config.DIS_LR, beta_1=config.DIS_BETA_1),
                 metrics=[K.metrics.BinaryAccuracy(threshold=.0)]  # Since we output logits, threshold .0 corresponds to .5 on the sigmoid
     )
     return model
@@ -141,7 +141,7 @@ def _get_gan_model(generator, discriminator):
     model = Model(inputs=text_inputs, outputs=logits_p_real, name="gan")
     discriminator.trainable = False
     model.compile(loss=binary_crossentropy,
-                optimizer=K.optimizers.Adam(learning_rate=.0001, beta_1=.5)
+                optimizer=K.optimizers.Adam(learning_rate=config.DIS_LR, beta_1=config.DIS_BETA_1)
     )
     return model
 

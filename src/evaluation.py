@@ -63,7 +63,7 @@ class MetricsAccumulator(object):
 
     _FIELDS = ["epoch", "discriminator_loss", "discriminator_binary_accuracy", 
             "gan_loss", "generator_loss", "generator_mean_squared_error", 
-            "generator_mean_absolute_error"]
+            "generator_mean_absolute_error", "gradient_penalizer_rms"]
 
     def __init__(self, log_dir):
         self._metric_values = defaultdict(list)
