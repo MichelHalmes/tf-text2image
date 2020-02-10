@@ -1,6 +1,7 @@
 import logging
 import sys
 from os import path, environ
+import time
 
 import random
 import numpy.random
@@ -8,6 +9,7 @@ import numpy.random
 import click
 import tensorflow.keras as K
 import tensorflow as tf
+
 
 sys.path.append(path.abspath(path.join(__file__, "../../")))
 
@@ -24,19 +26,26 @@ _D = "dis"
 TRAIN_G = (_G,)
 TRAIN_D = (_D,)
 TRAIN_GD = (_G, _D)
-_SOFT_ONE = 1.
-# _W_CLIP_VALUE = .01
+
+
+def add_noise(image):
+    image += tf.random.truncated_normal(image.shape, stddev=.2)
+    image = tf.clip_by_value(image, -1., 1.)
+    return image
+
 
 def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
     # @tf.function TODO: avoid eager and use summary writer
     gradient_penalizer = GradientPenalizer(discriminator)
     def _train_on_batch(text_inputs_dict, real_images, train_part=TRAIN_GD):
         fake_images = generator(text_inputs_dict, training=False)
+        real_images = add_noise(real_images)
+        fake_images = add_noise(fake_images)
 
         if _D in train_part:
             # Train discriminator on real & fake images
             inputs_dict = {"image": real_images, **text_inputs_dict}
-            labels = tf.ones(config.BATCH_SIZE)*_SOFT_ONE
+            labels = tf.ones(config.BATCH_SIZE)
             d_loss_real = discriminator.train_on_batch(inputs_dict, labels)
             accumulator.update(discriminator, d_loss_real)
             gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, fake_images)
@@ -50,8 +59,6 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
             gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, fake_images)
             accumulator.update(gradient_penalizer, gp_loss)
 
-            # accumulator.update(discriminator, [(l1+l2)*.5 for l1, l2 in zip(d_loss_fake, d_loss_real)])
-
         # Train GAN
         if _G in train_part:
             labels = tf.ones(config.BATCH_SIZE)
@@ -63,7 +70,6 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
         gen_loss = [f(real_images, fake_images).numpy() for f in generator.loss_functions+generator.metrics]
         accumulator.update(generator, gen_loss)
     return _train_on_batch
-
 
 
 @click.command()
@@ -84,7 +90,7 @@ def train(restore):
     train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
 
     for epoch in range(config.NUM_EPOCHS):
-        logging.info("Running epoch %s", epoch)
+        start_time = time.time()
         for b, (text_inputs_dict, images) in enumerate(train_data):
             print(f"{b} completed", end="\r")
             train_part = TRAIN_D if epoch < 5 else \
@@ -92,6 +98,7 @@ def train(restore):
             _train_on_batch_f(text_inputs_dict, images, train_part)
         accumulator.accumulate(epoch)
         logger.on_epoch_end(epoch)
+        logging.info("Done with epoch %s took %ss", epoch, round(time.time()-start_time, 2))
             
 
 

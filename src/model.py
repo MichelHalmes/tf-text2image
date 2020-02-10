@@ -67,7 +67,7 @@ def _get_generator_model(text_rnn, gen_trains_rnn):
 
     FEAT_HW = 4
     FEAT_C = 32
-    features = Dense(FEAT_HW*FEAT_HW*FEAT_C)(texts_features)
+    features = Dense(FEAT_HW*FEAT_HW*FEAT_C, activation=LeakyReLU(alpha=.1))(texts_features)
     feature_map = Reshape((FEAT_HW, FEAT_HW, FEAT_C))(features)
 
     def deconv(feature_map, n_out):
@@ -105,11 +105,10 @@ def _get_discriminator_model(text_rnn):
         return feature_map
 
     image_input = Input(shape=[config.IMAGE_H, config.IMAGE_W, 3], name="image")
-
     feature_map = image_input
     feature_map = conv(feature_map, 16)  #16
 
-    texts_feature_map = Dense(16*16*4)(texts_features)
+    texts_feature_map = Dense(16*16*4, activation=LeakyReLU(alpha=.1))(texts_features)
     texts_feature_map = Reshape((16, 16, 4))(texts_feature_map)
     feature_map = concatenate([feature_map, texts_feature_map])
 
@@ -119,7 +118,7 @@ def _get_discriminator_model(text_rnn):
     feature_map = Conv2D(filters=32, kernel_size=1, padding="same", strides=1, activation=LeakyReLU(alpha=.1))(feature_map)
 
     image_features = Flatten()(feature_map)
-    minibatch_features = MinibatchDiscrimination(num_kernels=20)(image_features)
+    minibatch_features = MinibatchDiscrimination(num_kernels=30, dim_per_kernel=7)(image_features)
 
     features = concatenate([image_features, minibatch_features, texts_features])
     logits_p_real = Dense(1)(features)
