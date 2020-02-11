@@ -14,6 +14,22 @@ def _product(iterable):
     return p
 
 
+def _get_input_names(layer):
+    inputs = layer.input
+    if not isinstance(inputs, list):
+        inputs = [inputs]
+    return [get_short_name(node) for node in inputs]
+    
+
+def get_short_name(node):
+    name = node.name
+    if name.endswith(":0"):
+        name = name[:-2]
+    if name.endswith("/Identity"):
+        name = name[:-9]
+    return name
+
+
 def print_model_summary(model):
     """ Keras.summary() doesnt distinguish well be tween trainable and non-trainable parameters.
         Thise method is an alternative that does...
@@ -25,8 +41,10 @@ def print_model_summary(model):
         total_train_params += nb_train_params
         nb_non_train_params = sum(_product(weight.shape) for weight in layer.non_trainable_variables)
         total_non_train_params += nb_non_train_params
-        table.append((layer.__class__.__name__, layer.name, getattr(layer, "input_names", None), 
-                                        layer.output_shape, nb_train_params, nb_non_train_params))
+        input_names = _get_input_names(layer)
+        output_shape = layer.output.shape
+        table.append((layer.__class__.__name__, layer.name, input_names, 
+                                        output_shape, nb_train_params, nb_non_train_params))
     table.append(("_________",)*6)
     table.append(("Model", model.name, model.input_names, model.output_shape, 
                                     total_train_params, total_non_train_params)) 

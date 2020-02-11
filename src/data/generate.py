@@ -1,4 +1,5 @@
 import random
+from contextlib import suppress
 
 import matplotlib
 matplotlib.use('agg')
@@ -41,6 +42,8 @@ def _fig_to_numpy(fig):
     image_np = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
     H, W = fig.canvas.get_width_height()
     image_np = image_np.reshape((W, H, 3))
+    with suppress(ValueError, RuntimeError):  # Trivial errors because we process in parallel...
+        plt.close(fig)
 
     return image_np
 
@@ -50,7 +53,7 @@ def generate_sample():
     spec_ = _spec_dict_as_text(spec_dict)
     fig = _plot_sample(chars, spec_dict)
     image_np = _fig_to_numpy(fig)
-    plt.close(fig)
+
     return chars, spec_, image_np
 
 
