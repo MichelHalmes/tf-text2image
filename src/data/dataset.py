@@ -7,9 +7,9 @@ import config
 from data.generate import generate_sample
 
 
-def get_generate_fn():
+def get_generate_fn(difficulty):
     def generate(_):
-        chars, spec, image = generate_sample()
+        chars, spec, image = generate_sample(difficulty)
         # chars += config.EOS_CHAR
         # spec += " "+config.EOS_CHAR
         # TODO: Retry with EOS for variable length inputs
@@ -65,13 +65,13 @@ def _iter_forever():
         cnt += 1
         yield cnt
 
-def get_dataset(encoders):
+def get_dataset(encoders, difficulty=-1):
     # We do all the work in the map functions so that the work can be better paralellized
     ds = tf.data.Dataset.from_generator(
         _iter_forever, 
         output_types=tf.int32, 
     )
-    ds = ds.map(get_generate_fn(), num_parallel_calls=2)
+    ds = ds.map(get_generate_fn(difficulty), num_parallel_calls=2)
     ds = ds.map(get_encode_text_fn(encoders.chars, encoders.spec))
     ds = ds.map(get_format_img_fn(encoders.image), num_parallel_calls=2)
     ds = ds.map(get_set_shapes_fn())

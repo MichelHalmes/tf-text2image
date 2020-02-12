@@ -11,9 +11,9 @@ import config
 COLORS = ["blue", "green", "red", "cyan", "magenta", "yellow", "black", "white"]
 
 
-def _sample_chars():
-    return "".join(random.choice(config.CHARS_ALPHABETH) for _ in range(config.CHARS_LENGTH))
-
+def _sample_chars(difficulty=-1):
+    alphabeth = config.CHARS_ALPHABETH[:difficulty] if difficulty > 1 else config.CHARS_ALPHABETH
+    return "".join(random.choice(alphabeth) for _ in range(config.CHARS_LENGTH))
 
 def _sample_spec_dict():
     backgroundcolor = random.choice(COLORS)
@@ -47,8 +47,8 @@ def _fig_to_numpy(fig):
 
     return image_np
 
-def generate_sample():
-    chars = _sample_chars()
+def generate_sample(difficulty=-1):
+    chars = _sample_chars(difficulty)
     spec_dict = _sample_spec_dict()
     spec_ = _spec_dict_as_text(spec_dict)
     fig = _plot_sample(chars, spec_dict)

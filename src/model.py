@@ -2,8 +2,8 @@
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import (
     Input, Embedding, GRU, 
-    concatenate, Reshape, Flatten, Dense,
-    LayerNormalization, BatchNormalization, Dropout,
+    concatenate, Reshape, Flatten, Dense, Lambda,
+    LayerNormalization, BatchNormalization, Dropout, GaussianNoise,
     LeakyReLU, Activation,
     Conv2D, Conv2DTranspose    
 )
@@ -23,7 +23,6 @@ def get_generator(encoders):
     print_model_summary(generator)
 
     return text_rnn, generator
-
 
 def get_models(encoders):
     text_rnn = _get_text_rnn_model(encoders)
@@ -64,8 +63,11 @@ def _get_text_rnn_model(encoders):
 def _get_generator_model(text_rnn, gen_trains_rnn):
     text_inputs = _get_text_inputs()
     texts_features = text_rnn(text_inputs)
-    shape = [Kb.shape(text_inputs[0])[0], cfg.NOISE_DIM]  # Batch x Dim
-    noise = Kb.random_uniform(shape=shape, minval=-1., maxval=1.)
+    def generate_noise(text_inputs):
+        shape = [Kb.shape(text_inputs[0])[0], cfg.NOISE_DIM]  # Batch x Dim
+        return Kb.random_uniform(shape=shape, minval=-1., maxval=1.)
+    
+    noise = Lambda(generate_noise)(text_inputs)
 
     features = concatenate([texts_features, noise])
 
@@ -103,13 +105,14 @@ def _get_discriminator_model(text_rnn):
     texts_features = text_rnn(text_inputs)
 
     def conv(feature_map, n_filters):
-        feature_map = Conv2D(filters=n_filters, kernel_size=4, padding="same", strides=2)(feature_map)
+        feature_map = Conv2D(filters=n_filters, kernel_size=5, padding="same", strides=2)(feature_map)
         feature_map = LeakyReLU(alpha=.1)(feature_map)
         feature_map = Dropout(cfg.DROP_PROB)(feature_map)
         return feature_map
 
     image_input = Input(shape=[cfg.IMAGE_H, cfg.IMAGE_W, 3], name="image")
-    feature_map = image_input
+    feature_map = GaussianNoise(.1)(image_input)
+    feature_map = Lambda(lambda img: Kb.clip(img, -1., 1.))(feature_map)
     feature_map = conv(feature_map, 16)  #16
 
     texts_feature_map = Dense(16*16*4)(texts_features)
