@@ -88,9 +88,11 @@ def train(restore):
 
     _train_on_batch_f = _get_train_on_batch_f(generator, discriminator, gan, accumulator)
 
-    difficulty = 0
+    difficulty = 1
+    dataset = get_dataset(encoders, difficulty)
+    train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
     for epoch in range(config.NUM_EPOCHS):
-        if epoch % 10 == 0:
+        if epoch > 500 and epoch % 20 == 0:
             difficulty += 0
             dataset = get_dataset(encoders, difficulty)
             train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
@@ -98,12 +100,12 @@ def train(restore):
         for b, (text_inputs_dict, images) in enumerate(train_data):
             print(f"{b} completed", end="\r")
             train_part = TRAIN_D if epoch < 5 else \
-                        TRAIN_GD # if b%6 == 0 else TRAIN_D
+                        TRAIN_GD if b%2 == 0 else TRAIN_D
             _train_on_batch_f(text_inputs_dict, images, train_part)
         accumulator.accumulate(epoch)
         logger.on_epoch_end(epoch)
-        logging.info("Done with epoch %s took %ss", epoch, round(time.time()-start_time, 2))
-            
+        logging.info("Done with epoch %s took %ss (difficulty=%s)", 
+                        epoch, round(time.time()-start_time, 2), difficulty)
 
 
 if __name__ == "__main__":

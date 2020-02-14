@@ -105,7 +105,7 @@ def _get_discriminator_model(text_rnn):
     texts_features = text_rnn(text_inputs)
 
     def conv(feature_map, n_filters):
-        feature_map = Conv2D(filters=n_filters, kernel_size=5, padding="same", strides=2)(feature_map)
+        feature_map = Conv2D(filters=n_filters, kernel_size=4, padding="same", strides=2)(feature_map)
         feature_map = LeakyReLU(alpha=.1)(feature_map)
         feature_map = Dropout(cfg.DROP_PROB)(feature_map)
         return feature_map
@@ -134,7 +134,7 @@ def _get_discriminator_model(text_rnn):
     model = Model(inputs=text_inputs+[image_input], outputs=logits_p_real, name="discriminator")
     text_rnn.trainable = False  # TODO
     model.compile(loss=binary_crossentropy,
-                optimizer=K.optimizers.Adam(learning_rate=cfg.DIS_LR, beta_1=cfg.DIS_BETA_1),
+                optimizer=K.optimizers.Adam(learning_rate=cfg.DIS_LR, beta_1=cfg.DIS_BETA_1, beta_2=cfg.DIS_BETA_2),
                 metrics=[K.metrics.BinaryAccuracy(threshold=.0)]  # Since we output logits, threshold .0 corresponds to .5 on the sigmoid
     )
     return model
@@ -148,7 +148,7 @@ def _get_gan_model(generator, discriminator):
     model = Model(inputs=text_inputs, outputs=logits_p_real, name="gan")
     discriminator.trainable = False
     model.compile(loss=binary_crossentropy,
-                optimizer=K.optimizers.Adam(learning_rate=cfg.DIS_LR, beta_1=cfg.DIS_BETA_1)
+                optimizer=K.optimizers.Adam(learning_rate=cfg.DIS_LR, beta_1=cfg.DIS_BETA_1, beta_2=cfg.DIS_BETA_2)
     )
     return model
 

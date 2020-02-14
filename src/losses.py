@@ -74,7 +74,7 @@ class GradientPenalizer(object):
 
     def __init__(self, discriminator):
         self._discriminator = discriminator
-        self._optimizer = K.optimizers.Adam(learning_rate=config.DIS_LR, beta_1=config.DIS_BETA_1)
+        self._optimizer = K.optimizers.Adam(learning_rate=config.DIS_LR*5, beta_1=config.DIS_BETA_1, beta_2=config.DIS_BETA_2)
         self.name = "gradient_penalizer"
         self.metrics_names = ["rms"]
 
