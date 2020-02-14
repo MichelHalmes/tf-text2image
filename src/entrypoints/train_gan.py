@@ -43,7 +43,7 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
         # fake_images = add_noise(fake_images)
 
         if _D in train_part:
-            # Train discriminator on real & fake images
+            # Train discriminator on real images
             inputs_dict = {"image": real_images, **text_inputs_dict}
             labels = tf.ones(config.BATCH_SIZE)
             d_loss_real = discriminator.train_on_batch(inputs_dict, labels)
@@ -56,6 +56,16 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
             labels = tf.zeros(config.BATCH_SIZE)
             d_loss_fake = discriminator.train_on_batch(inputs_dict, labels)
             accumulator.update(discriminator, d_loss_fake)
+            gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, fake_images)
+            accumulator.update(gradient_penalizer, gp_loss)
+
+            # Train discriminator on images with wrong text
+            shuffled_images = tf.random.shuffle(real_images)
+            inputs_dict = {"image": shuffled_images, **text_inputs_dict}
+            labels = tf.zeros(config.BATCH_SIZE)
+            d_loss_shuffle = discriminator.train_on_batch(inputs_dict, labels)
+            accumulator.update(discriminator, d_loss_shuffle)
+
             gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, fake_images)
             accumulator.update(gradient_penalizer, gp_loss)
 
@@ -88,18 +98,19 @@ def train(restore):
 
     _train_on_batch_f = _get_train_on_batch_f(generator, discriminator, gan, accumulator)
 
-    difficulty = 1
+    difficulty = -1
     dataset = get_dataset(encoders, difficulty)
     train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
     for epoch in range(config.NUM_EPOCHS):
-        if epoch > 500 and epoch % 20 == 0:
-            difficulty += 0
-            dataset = get_dataset(encoders, difficulty)
-            train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
+        text_rnn.load_weights(checkpoint_path)  # TODO
+        # if epoch > 500 and epoch % 20 == 0:
+        #     difficulty += 0
+        #     dataset = get_dataset(encoders, difficulty)
+        #     train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
         start_time = time.time()
         for b, (text_inputs_dict, images) in enumerate(train_data):
             print(f"{b} completed", end="\r")
-            train_part = TRAIN_D if epoch < 5 else \
+            train_part = TRAIN_D if epoch < 7 else \
                         TRAIN_GD if b%2 == 0 else TRAIN_D
             _train_on_batch_f(text_inputs_dict, images, train_part)
         accumulator.accumulate(epoch)
