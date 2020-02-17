@@ -36,9 +36,9 @@ def add_noise(image):
 
 def shuffle_text(text_inputs_dict):
     shuffled = copy(text_inputs_dict)
-    if random.random() < .7:
+    if random.random() < .75:
         shuffled["chars"] = tf.random.shuffle(shuffled["chars"])
-        if random.random() < .1:
+        if random.random() < .2:
             shuffled["spec"] = tf.random.shuffle(shuffled["spec"])
     else:
         shuffled["spec"] = tf.random.shuffle(shuffled["spec"])
@@ -55,30 +55,24 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
         # fake_images = add_noise(fake_images)
 
         if _D in train_part:
-            # Train discriminator on real images
-            inputs_dict = {"image": real_images, **text_inputs_dict}
-            labels = tf.ones(config.BATCH_SIZE)
-            d_loss_real = discriminator.train_on_batch(inputs_dict, labels)
-            accumulator.update(discriminator, d_loss_real)
-
             # Train discriminator on fake images
-            inputs_dict = {"image": fake_images, **text_inputs_dict}
+            inputs_dict  = {"image": fake_images, **text_inputs_dict}
             labels = tf.zeros(config.BATCH_SIZE)
-            d_loss_fake = discriminator.train_on_batch(inputs_dict, labels)
-            accumulator.update(discriminator, d_loss_fake)
+            d_loss = discriminator.train_on_batch(inputs_dict, labels)
+            accumulator.update(discriminator, d_loss)
 
             # Train discriminator on real images
-            inputs_dict = {"image": real_images, **text_inputs_dict}
+            inputs_dict  = {"image": real_images, **text_inputs_dict}
             labels = tf.ones(config.BATCH_SIZE)
-            d_loss_real = discriminator.train_on_batch(inputs_dict, labels)
-            accumulator.update(discriminator, d_loss_real)
+            d_loss = discriminator.train_on_batch(inputs_dict, labels, sample_weight=tf.ones(config.BATCH_SIZE)*2.)
+            accumulator.update(discriminator, d_loss)
 
             # Train discriminator on images with wrong text
             shuffled_text_inputs_dict = shuffle_text(text_inputs_dict)
-            inputs_dict = {"image": real_images, **shuffled_text_inputs_dict}
+            inputs_dict  = {"image": real_images, **shuffled_text_inputs_dict}
             labels = tf.zeros(config.BATCH_SIZE)
-            d_loss_shuffle = discriminator.train_on_batch(inputs_dict, labels)
-            accumulator.update(discriminator, d_loss_shuffle)
+            d_loss = discriminator.train_on_batch(inputs_dict, labels)
+            accumulator.update(discriminator, d_loss)
 
         # Train GAN
         if _G in train_part:
@@ -109,20 +103,19 @@ def train(restore):
 
     _train_on_batch_f = _get_train_on_batch_f(generator, discriminator, gan, accumulator)
 
-    difficulty = -1
+    difficulty = 5
     dataset = get_dataset(encoders, difficulty)
     train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
     for epoch in range(config.NUM_EPOCHS):
-        # text_rnn.load_weights(checkpoint_path)  # TODO
         # if epoch > 500 and epoch % 20 == 0:
-        #     difficulty += 0
+        #     difficulty += 1
         #     dataset = get_dataset(encoders, difficulty)
         #     train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
         start_time = time.time()
         for b, (text_inputs_dict, images) in enumerate(train_data):
             print(f"{b} completed", end="\r")
-            train_part = TRAIN_D if epoch < 7 else \
-                        TRAIN_GD if b%2 == 0 else TRAIN_D
+            train_part = TRAIN_D if epoch < 10 else \
+                        TRAIN_GD # if b%2 == 0 else TRAIN_D
             _train_on_batch_f(text_inputs_dict, images, train_part)
         accumulator.accumulate(epoch)
         logger.on_epoch_end(epoch)

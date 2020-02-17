@@ -71,9 +71,9 @@ def get_dataset(encoders, difficulty=-1):
         _iter_forever, 
         output_types=tf.int32, 
     )
-    ds = ds.map(get_generate_fn(difficulty), num_parallel_calls=2)
+    ds = ds.map(get_generate_fn(difficulty))
     ds = ds.map(get_encode_text_fn(encoders.chars, encoders.spec))
-    ds = ds.map(get_format_img_fn(encoders.image), num_parallel_calls=2)
+    ds = ds.map(get_format_img_fn(encoders.image))
     ds = ds.map(get_set_shapes_fn())
     ds = ds.prefetch(config.BATCH_SIZE*2)
     return ds

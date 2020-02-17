@@ -42,8 +42,7 @@ def _fig_to_numpy(fig):
     image_np = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
     H, W = fig.canvas.get_width_height()
     image_np = image_np.reshape((W, H, 3))
-    with suppress(ValueError, RuntimeError):  # Trivial errors because we process in parallel...
-        plt.close(fig)
+    plt.close(fig)
 
     return image_np
 
