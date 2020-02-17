@@ -2,6 +2,7 @@ import logging
 import sys
 from os import path, environ
 import time
+from copy import copy
 
 import random
 import numpy.random
@@ -33,6 +34,17 @@ def add_noise(image):
     image = tf.clip_by_value(image, -1., 1.)
     return image
 
+def shuffle_text(text_inputs_dict):
+    shuffled = copy(text_inputs_dict)
+    if random.random() < .7:
+        shuffled["chars"] = tf.random.shuffle(shuffled["chars"])
+        if random.random() < .1:
+            shuffled["spec"] = tf.random.shuffle(shuffled["spec"])
+    else:
+        shuffled["spec"] = tf.random.shuffle(shuffled["spec"])
+    return shuffled
+
+
 
 def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
     # @tf.function TODO: avoid eager and use summary writer
@@ -48,26 +60,25 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
             labels = tf.ones(config.BATCH_SIZE)
             d_loss_real = discriminator.train_on_batch(inputs_dict, labels)
             accumulator.update(discriminator, d_loss_real)
-            gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, fake_images)
-            accumulator.update(gradient_penalizer, gp_loss)
 
             # Train discriminator on fake images
             inputs_dict = {"image": fake_images, **text_inputs_dict}
             labels = tf.zeros(config.BATCH_SIZE)
             d_loss_fake = discriminator.train_on_batch(inputs_dict, labels)
             accumulator.update(discriminator, d_loss_fake)
-            gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, fake_images)
-            accumulator.update(gradient_penalizer, gp_loss)
+
+            # Train discriminator on real images
+            inputs_dict = {"image": real_images, **text_inputs_dict}
+            labels = tf.ones(config.BATCH_SIZE)
+            d_loss_real = discriminator.train_on_batch(inputs_dict, labels)
+            accumulator.update(discriminator, d_loss_real)
 
             # Train discriminator on images with wrong text
-            shuffled_images = tf.random.shuffle(real_images)
-            inputs_dict = {"image": shuffled_images, **text_inputs_dict}
+            shuffled_text_inputs_dict = shuffle_text(text_inputs_dict)
+            inputs_dict = {"image": real_images, **shuffled_text_inputs_dict}
             labels = tf.zeros(config.BATCH_SIZE)
             d_loss_shuffle = discriminator.train_on_batch(inputs_dict, labels)
             accumulator.update(discriminator, d_loss_shuffle)
-
-            gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, fake_images)
-            accumulator.update(gradient_penalizer, gp_loss)
 
         # Train GAN
         if _G in train_part:
@@ -102,7 +113,7 @@ def train(restore):
     dataset = get_dataset(encoders, difficulty)
     train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
     for epoch in range(config.NUM_EPOCHS):
-        text_rnn.load_weights(checkpoint_path)  # TODO
+        # text_rnn.load_weights(checkpoint_path)  # TODO
         # if epoch > 500 and epoch % 20 == 0:
         #     difficulty += 0
         #     dataset = get_dataset(encoders, difficulty)
