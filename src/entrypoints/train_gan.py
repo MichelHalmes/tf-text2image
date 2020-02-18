@@ -107,10 +107,10 @@ def train(restore):
     dataset = get_dataset(encoders, difficulty)
     train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
     for epoch in range(config.NUM_EPOCHS):
-        # if epoch > 500 and epoch % 20 == 0:
-        #     difficulty += 1
-        #     dataset = get_dataset(encoders, difficulty)
-        #     train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
+        if epoch > 150 and epoch % 10 == 0:
+            difficulty += 1
+            dataset = get_dataset(encoders, difficulty)
+            train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
         start_time = time.time()
         for b, (text_inputs_dict, images) in enumerate(train_data):
             print(f"{b} completed", end="\r")
