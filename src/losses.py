@@ -74,7 +74,7 @@ class GradientPenalizer(object):
 
     def __init__(self, discriminator):
         self._discriminator = discriminator
-        self._optimizer = K.optimizers.Adam(learning_rate=config.DIS_LR*5, beta_1=config.DIS_BETA_1, beta_2=config.DIS_BETA_2)
+        self._optimizer = K.optimizers.Adam(learning_rate=config.DIS_LR, beta_1=config.DIS_BETA_1, beta_2=config.DIS_BETA_2)
         self.name = "gradient_penalizer"
         self.metrics_names = ["loss", "wdis"]
 
@@ -96,12 +96,16 @@ class GradientPenalizer(object):
             fake_logit = self._compute_critic_logit(fake_images, text_inputs)
             gradients = self._compute_gradients(interpolated_images, text_inputs)
             gradient_penalty = self._compute_gradient_penalty(gradients)
-            loss = -real_logit + fake_logit + 5.*gradient_penalty
+            # loss = -real_logit + fake_logit + 5.*gradient_penalty
+            loss = binary_crossentropy(tf.ones(config.BATCH_SIZE), real_logit)
+            loss += binary_crossentropy(tf.zeros(config.BATCH_SIZE), fake_logit)
+            # print(loss)
 
-        trainable_vars = self._discriminator.trainable_variables
+        trainable_vars = [var for var in self._discriminator.variables if not var.name.startswith("text_rnn")]
+        # print([var.name for var in trainable_vars])
         disc_gradients = tape.gradient(loss, trainable_vars)
         self._optimizer.apply_gradients(zip(disc_gradients, trainable_vars))
-        return [gradient_penalty, fake_logit-real_logit]  #.numpy()
+        return [gradient_penalty, loss]  #.numpy()
     
     def _compute_gradients(self, interpolated_images, text_inputs):
         with tf.GradientTape() as tape:
@@ -125,7 +129,8 @@ class GradientPenalizer(object):
         # Somehow feeding the dict does not work...
         inputs = [inputs_dict["chars"], inputs_dict["spec"], inputs_dict["image"]]
         logits = self._discriminator(inputs, training=True)
-        return Kb.mean(logits)
+        return logits
+        # return Kb.mean(logits)
 
 
 ## LOSS FROM ORIGINAL GAN PAPER ##

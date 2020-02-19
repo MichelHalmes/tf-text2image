@@ -36,6 +36,14 @@ def get_models(encoders):
 
     return text_rnn, generator, discriminator, gan
 
+def _add_layer_variable_prefix(model, prefix):
+    def add_prefix(layer):
+        layer_conf = layer.get_config()
+        layer_conf["name"] = prefix + "/" + layer_conf["name"]
+        new_layer = layer.__class__.from_config(layer_conf)
+        return new_layer
+    return K.models.clone_model(model, clone_function=add_prefix)
+
 def  _get_text_inputs():
     chars = Input(shape=[None], name="chars", dtype="int32")
     spec = Input(shape=[None], name="spec")
@@ -44,7 +52,6 @@ def  _get_text_inputs():
 
 def _get_text_rnn_model(encoders):
     chars, spec = _get_text_inputs()
-
     chars_embed = Embedding(input_dim=encoders.chars.vocab_size, output_dim=cfg.EMBED_SIZE)(chars)
     chars_features = GRU(cfg.RNN_SIZE)(chars_embed)
 
@@ -57,6 +64,7 @@ def _get_text_rnn_model(encoders):
     texts_features = Activation("selu")(texts_features)
 
     model = Model(inputs=[chars, spec], outputs=texts_features, name="text_rnn")
+    model = _add_layer_variable_prefix(model, "text_rnn")
     return model
 
 
@@ -137,7 +145,7 @@ def _get_discriminator_model(text_rnn):
 
     model = Model(inputs=text_inputs+[image_input], outputs=logits_p_real, name="discriminator")
     text_rnn.trainable = False  # TODO
-    model.compile(loss=wasserstein_loss,
+    model.compile(loss=binary_crossentropy,
                 optimizer=K.optimizers.Adam(learning_rate=cfg.DIS_LR, beta_1=cfg.DIS_BETA_1, beta_2=cfg.DIS_BETA_2),
                 metrics=[K.metrics.BinaryAccuracy(threshold=.0)]  # Since we output logits, threshold .0 corresponds to .5 on the sigmoid
     )
@@ -151,7 +159,7 @@ def _get_gan_model(generator, discriminator):
     
     model = Model(inputs=text_inputs, outputs=logits_p_real, name="gan")
     discriminator.trainable = False
-    model.compile(loss=wasserstein_loss,
+    model.compile(loss=binary_crossentropy,
                 optimizer=K.optimizers.Adam(learning_rate=cfg.DIS_LR, beta_1=cfg.DIS_BETA_1, beta_2=cfg.DIS_BETA_2)
     )
     return model

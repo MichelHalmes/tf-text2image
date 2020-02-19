@@ -51,8 +51,6 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
     gradient_penalizer = GradientPenalizer(discriminator)
     def _train_on_batch(text_inputs_dict, real_images, train_part=TRAIN_GD):
         fake_images = generator(text_inputs_dict, training=False)
-        # real_images = add_noise(real_images)
-        # fake_images = add_noise(fake_images)
 
         if _D in train_part:
             gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, fake_images)
