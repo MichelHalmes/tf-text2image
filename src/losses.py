@@ -83,6 +83,12 @@ class GradientPenalizer(object):
         interpolated_images = self._interpolate_images(real_images, fake_images)
         return self.run_step(text_inputs, interpolated_images)
 
+    def _interpolate_images(self, real_images, fake_images):
+        eps = Kb.random_uniform([config.BATCH_SIZE, 1, 1, 1])
+        interpolated_images = eps * real_images + (1 - eps) * fake_images
+        interpolated_images = tf.Variable(interpolated_images)
+        return interpolated_images
+
     @tf.function
     def run_step(self, text_inputs, interpolated_images):
         with tf.GradientTape() as tape:
@@ -94,12 +100,6 @@ class GradientPenalizer(object):
         self._optimizer.apply_gradients(zip(disc_gradients, trainable_vars))
         return gradient_penalty #.numpy()
     
-    def _interpolate_images(self, real_images, fake_images):
-        eps = Kb.random_uniform([config.BATCH_SIZE, 1, 1, 1])
-        interpolated_images = eps * real_images + (1 - eps) * fake_images
-        interpolated_images = tf.Variable(interpolated_images)
-        return interpolated_images
-
     def _compute_gradients(self, interpolated_images, text_inputs):
         with tf.GradientTape() as tape:
             inputs_dict = {"image": interpolated_images, **text_inputs}
