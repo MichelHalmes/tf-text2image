@@ -57,28 +57,32 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
         if _D in train_part:
             gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, fake_images)
             accumulator.update(gradient_penalizer, gp_loss)
-            # Train discriminator on fake images
-            inputs_dict  = {"image": fake_images, **text_inputs_dict}
-            labels = tf.zeros(config.BATCH_SIZE)
-            d_loss = discriminator.train_on_batch(inputs_dict, labels)
-            accumulator.update(discriminator, d_loss)
+            # # Train discriminator on fake images
+            # inputs_dict  = {"image": fake_images, **text_inputs_dict}
+            # labels = tf.zeros(config.BATCH_SIZE)
+            # d_loss = discriminator.train_on_batch(inputs_dict, labels)
+            # accumulator.update(discriminator, d_loss)
 
-            gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, fake_images)
+            shuffled_images = tf.random.shuffle(real_images)
+            gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, shuffled_images)
             accumulator.update(gradient_penalizer, gp_loss)
-            # Train discriminator on real images
-            inputs_dict  = {"image": real_images, **text_inputs_dict}
-            labels = tf.ones(config.BATCH_SIZE)
-            d_loss = discriminator.train_on_batch(inputs_dict, labels, sample_weight=tf.ones(config.BATCH_SIZE)*2.)
-            accumulator.update(discriminator, d_loss)
 
-            gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, fake_images)
-            accumulator.update(gradient_penalizer, gp_loss)
-            # Train discriminator on images with wrong text
-            shuffled_text_inputs_dict = shuffle_text(text_inputs_dict)
-            inputs_dict  = {"image": real_images, **shuffled_text_inputs_dict}
-            labels = tf.zeros(config.BATCH_SIZE)
-            d_loss = discriminator.train_on_batch(inputs_dict, labels)
-            accumulator.update(discriminator, d_loss)
+            # gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, fake_images)
+            # accumulator.update(gradient_penalizer, gp_loss)
+            # # Train discriminator on real images
+            # inputs_dict  = {"image": real_images, **text_inputs_dict}
+            # labels = tf.ones(config.BATCH_SIZE)
+            # d_loss = discriminator.train_on_batch(inputs_dict, labels, sample_weight=tf.ones(config.BATCH_SIZE)*2.)
+            # accumulator.update(discriminator, d_loss)
+
+            # gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, fake_images)
+            # accumulator.update(gradient_penalizer, gp_loss)
+            # # Train discriminator on images with wrong text
+            # shuffled_text_inputs_dict = shuffle_text(text_inputs_dict)
+            # inputs_dict  = {"image": real_images, **shuffled_text_inputs_dict}
+            # labels = tf.zeros(config.BATCH_SIZE)
+            # d_loss = discriminator.train_on_batch(inputs_dict, labels)
+            # accumulator.update(discriminator, d_loss)
 
         # Train GAN
         if _G in train_part:

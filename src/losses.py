@@ -76,12 +76,12 @@ class GradientPenalizer(object):
         self._discriminator = discriminator
         self._optimizer = K.optimizers.Adam(learning_rate=config.DIS_LR*5, beta_1=config.DIS_BETA_1, beta_2=config.DIS_BETA_2)
         self.name = "gradient_penalizer"
-        self.metrics_names = ["rms"]
+        self.metrics_names = ["loss", "wdis"]
 
     # Cannot be a tf.function since we declare a variable... :-(
     def run_on_batch(self, text_inputs, real_images, fake_images):
         interpolated_images = self._interpolate_images(real_images, fake_images)
-        return self.run_step(text_inputs, interpolated_images)
+        return self.run_step(text_inputs, real_images, fake_images, interpolated_images)
 
     def _interpolate_images(self, real_images, fake_images):
         eps = Kb.random_uniform([config.BATCH_SIZE, 1, 1, 1])
@@ -90,15 +90,18 @@ class GradientPenalizer(object):
         return interpolated_images
 
     @tf.function
-    def run_step(self, text_inputs, interpolated_images):
+    def run_step(self, text_inputs, real_images, fake_images, interpolated_images):
         with tf.GradientTape() as tape:
+            real_logit = self._compute_critic_logit(real_images, text_inputs)
+            fake_logit = self._compute_critic_logit(fake_images, text_inputs)
             gradients = self._compute_gradients(interpolated_images, text_inputs)
             gradient_penalty = self._compute_gradient_penalty(gradients)
+            loss = -real_logit + fake_logit + 5.*gradient_penalty
 
         trainable_vars = self._discriminator.trainable_variables
-        disc_gradients = tape.gradient(gradient_penalty, trainable_vars)
+        disc_gradients = tape.gradient(loss, trainable_vars)
         self._optimizer.apply_gradients(zip(disc_gradients, trainable_vars))
-        return gradient_penalty #.numpy()
+        return [gradient_penalty, fake_logit-real_logit]  #.numpy()
     
     def _compute_gradients(self, interpolated_images, text_inputs):
         with tf.GradientTape() as tape:
@@ -116,6 +119,14 @@ class GradientPenalizer(object):
         gradient_l2_norm = Kb.sqrt(gradients_sqr_sum)
         gradient_penalty = Kb.mean(Kb.square(1. - gradient_l2_norm))
         return gradient_penalty
+
+    def _compute_critic_logit(self, images, text_inputs):
+        inputs_dict = {"image": images, **text_inputs}
+        # Somehow feeding the dict does not work...
+        inputs = [inputs_dict["chars"], inputs_dict["spec"], inputs_dict["image"]]
+        logits = self._discriminator(inputs, training=True)
+        return Kb.mean(logits)
+
 
 ## LOSS FROM ORIGINAL GAN PAPER ##
     
