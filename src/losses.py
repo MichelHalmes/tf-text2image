@@ -92,18 +92,19 @@ class GradientPenalizer(object):
     @tf.function
     def run_step(self, text_inputs, real_images, fake_images, interpolated_images):
         with tf.GradientTape() as tape:
-            real_logit = self._compute_critic_logit(real_images, text_inputs)
-            fake_logit = self._compute_critic_logit(fake_images, text_inputs)
+            # real_logit = self._compute_critic_logit(real_images, text_inputs)
+            # fake_logit = self._compute_critic_logit(fake_images, text_inputs)
             gradients = self._compute_gradients(interpolated_images, text_inputs)
             gradient_penalty = self._compute_gradient_penalty(gradients)
-            # loss = -real_logit + fake_logit + 5.*gradient_penalty
-            loss = binary_crossentropy(tf.ones(config.BATCH_SIZE), real_logit)
-            loss += binary_crossentropy(tf.zeros(config.BATCH_SIZE), fake_logit)
+            loss = 10.*gradient_penalty #Kb.mean(-real_logit + fake_logit) + 10.*gradient_penalty
+            # loss = binary_crossentropy(tf.ones(config.BATCH_SIZE), real_logit)
+            # loss += binary_crossentropy(tf.zeros(config.BATCH_SIZE), fake_logit)
             # print(loss)
 
         trainable_vars = [var for var in self._discriminator.variables if not var.name.startswith("text_rnn")]
         # print([var.name for var in trainable_vars])
         disc_gradients = tape.gradient(loss, trainable_vars)
+
         self._optimizer.apply_gradients(zip(disc_gradients, trainable_vars))
         return [gradient_penalty, loss]  #.numpy()
     
