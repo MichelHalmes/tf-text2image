@@ -3,7 +3,7 @@ import tensorflow.keras as K
 import tensorflow as tf
 import numpy as np
 
-import config
+import config as cfg
 
 ##   TANH CROSS ENTROPY   ##
 
@@ -74,7 +74,7 @@ class GradientPenalizer(object):
 
     def __init__(self, discriminator):
         self._discriminator = discriminator
-        self._optimizer = K.optimizers.Adam(learning_rate=config.DIS_LR, beta_1=config.DIS_BETA_1, beta_2=config.DIS_BETA_2)
+        self._optimizer = discriminator.optimizer #K.optimizers.Adam(learning_rate=cfg.DIS_LR, beta_1=cfg.DIS_BETA_1, beta_2=cfg.DIS_BETA_2)
         self.name = "gradient_penalizer"
         self.metrics_names = ["loss", "wdis"]
 
@@ -84,7 +84,7 @@ class GradientPenalizer(object):
         return self.run_step(text_inputs, real_images, fake_images, interpolated_images)
 
     def _interpolate_images(self, real_images, fake_images):
-        eps = Kb.random_uniform([config.BATCH_SIZE, 1, 1, 1])
+        eps = Kb.random_uniform([cfg.BATCH_SIZE, 1, 1, 1])
         interpolated_images = eps * real_images + (1 - eps) * fake_images
         interpolated_images = tf.Variable(interpolated_images)
         return interpolated_images
@@ -96,9 +96,9 @@ class GradientPenalizer(object):
             # fake_logit = self._compute_critic_logit(fake_images, text_inputs)
             gradients = self._compute_gradients(interpolated_images, text_inputs)
             gradient_penalty = self._compute_gradient_penalty(gradients)
-            loss = 10.*gradient_penalty #Kb.mean(-real_logit + fake_logit) + 10.*gradient_penalty
-            # loss = binary_crossentropy(tf.ones(config.BATCH_SIZE), real_logit)
-            # loss += binary_crossentropy(tf.zeros(config.BATCH_SIZE), fake_logit)
+            loss = cfg.WGAN_GP_LAMBDA*gradient_penalty #Kb.mean(-real_logit + fake_logit) + 10.*gradient_penalty
+            # loss = binary_crossentropy(tf.ones(cfg.BATCH_SIZE), real_logit)
+            # loss += binary_crossentropy(tf.zeros(cfg.BATCH_SIZE), fake_logit)
             # print(loss)
 
         trainable_vars = [var for var in self._discriminator.variables if not var.name.startswith("text_rnn")]

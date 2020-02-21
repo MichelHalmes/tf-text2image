@@ -141,7 +141,7 @@ def _get_discriminator_model(text_rnn):
     minibatch_features = MinibatchDiscrimination(num_kernels=30, dim_per_kernel=7)(image_features)
 
     features = concatenate([image_features, minibatch_features, texts_features])
-    logits_p_real = Dense(1)(features)
+    logits_p_real = Dense(1, use_bias=False)(features)  # TODO !!!!!!!!!!!!!!!
 
     model = Model(inputs=text_inputs+[image_input], outputs=logits_p_real, name="discriminator")
     text_rnn.trainable = False  # TODO
