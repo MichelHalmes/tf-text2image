@@ -72,11 +72,14 @@ class GradientPenalizer(object):
         https://github.com/tensorflow/tensorflow/issues/36436
     """
 
-    def __init__(self, discriminator):
+    def __init__(self, discriminator, gp_only):
+        """ gp_only: 
+                True -> Minimizes the gradient penalty only
+                False -> Also optimizes our estimate of the Wasserstein distance """
         self._discriminator = discriminator
-        self._optimizer = discriminator.optimizer #K.optimizers.Adam(learning_rate=cfg.DIS_LR, beta_1=cfg.DIS_BETA_1, beta_2=cfg.DIS_BETA_2)
+        self._gp_only = gp_only
         self.name = "gradient_penalizer"
-        self.metrics_names = ["loss", "wdis"]
+        self.metrics_names = ["gp", "wdist"]
 
     # Cannot be a tf.function since we declare a variable... :-(
     def run_on_batch(self, text_inputs, real_images, fake_images):
@@ -92,21 +95,20 @@ class GradientPenalizer(object):
     @tf.function
     def run_step(self, text_inputs, real_images, fake_images, interpolated_images):
         with tf.GradientTape() as tape:
-            # real_logit = self._compute_critic_logit(real_images, text_inputs)
-            # fake_logit = self._compute_critic_logit(fake_images, text_inputs)
             gradients = self._compute_gradients(interpolated_images, text_inputs)
             gradient_penalty = self._compute_gradient_penalty(gradients)
-            loss = cfg.WGAN_GP_LAMBDA*gradient_penalty #Kb.mean(-real_logit + fake_logit) + 10.*gradient_penalty
-            # loss = binary_crossentropy(tf.ones(cfg.BATCH_SIZE), real_logit)
-            # loss += binary_crossentropy(tf.zeros(cfg.BATCH_SIZE), fake_logit)
-            # print(loss)
+            real_logit = self._compute_critic_logit(real_images, text_inputs)
+            fake_logit = self._compute_critic_logit(fake_images, text_inputs)
+            w_dist = real_logit - fake_logit
+            loss = cfg.WGAN_GP_LAMBDA * gradient_penalty
+            if not self._gp_only:
+                loss -= w_dist
 
         trainable_vars = [var for var in self._discriminator.variables if not var.name.startswith("text_rnn")]
-        # print([var.name for var in trainable_vars])
         disc_gradients = tape.gradient(loss, trainable_vars)
 
-        self._optimizer.apply_gradients(zip(disc_gradients, trainable_vars))
-        return [gradient_penalty, loss]  #.numpy()
+        self._discriminator.optimizer.apply_gradients(zip(disc_gradients, trainable_vars))
+        return [gradient_penalty, w_dist]
     
     def _compute_gradients(self, interpolated_images, text_inputs):
         with tf.GradientTape() as tape:
@@ -122,16 +124,15 @@ class GradientPenalizer(object):
         gradients_sqr_sum = Kb.sum(gradients_sqr,
                                 axis=np.arange(1, len(gradients_sqr.shape)))
         gradient_l2_norm = Kb.sqrt(gradients_sqr_sum)
-        gradient_penalty = Kb.mean(Kb.square(1. - gradient_l2_norm))
-        return gradient_penalty
+        gradient_penalty = Kb.square(1. - gradient_l2_norm)
+        return Kb.mean(gradient_penalty)
 
     def _compute_critic_logit(self, images, text_inputs):
         inputs_dict = {"image": images, **text_inputs}
         # Somehow feeding the dict does not work...
         inputs = [inputs_dict["chars"], inputs_dict["spec"], inputs_dict["image"]]
         logits = self._discriminator(inputs, training=True)
-        return logits
-        # return Kb.mean(logits)
+        return Kb.mean(logits)
 
 
 ## LOSS FROM ORIGINAL GAN PAPER ##

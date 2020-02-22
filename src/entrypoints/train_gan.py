@@ -57,8 +57,7 @@ def _get_train_discriminator_f(discriminator, accumulator):
 
 
 def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
-    # @tf.function TODO: avoid eager and use summary writer
-    gradient_penalizer = GradientPenalizer(discriminator)
+    gradient_penalizer = GradientPenalizer(discriminator, gp_only=False)
     train_discriminator = _get_train_discriminator_f(discriminator, accumulator)
 
     def _train_on_batch(text_inputs_dict, real_images, train_part=TRAIN_GD):
@@ -70,8 +69,8 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
             accumulator.update(gradient_penalizer, gp_loss)
 
             # Train discriminator
-            train_discriminator(fake_images, text_inputs_dict, is_real=False)
-            train_discriminator(real_images, text_inputs_dict, is_real=True)
+            # train_discriminator(fake_images, text_inputs_dict, is_real=False)
+            # train_discriminator(real_images, text_inputs_dict, is_real=True)
             shuffled_text_inputs_dict = _shuffle_text(text_inputs_dict)
             train_discriminator(real_images, shuffled_text_inputs_dict, is_real=False)
             train_discriminator(real_images, text_inputs_dict, is_real=True)
@@ -93,7 +92,7 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
 @click.option("--restore/--no-restore", default=True, help="Reinititalize the model or restore previous checkpoint")
 def train(restore):
     encoders = get_encoders()
-    dataset = get_dataset(encoders, difficulty=5)
+    dataset = get_dataset(encoders, difficulty=10)
     text_rnn, generator, discriminator, gan = get_models(encoders)
 
     checkpoint_path = path.join(config.CHECKPOINT_DIR, "keras", "text_rnn.ckpt")
@@ -105,14 +104,14 @@ def train(restore):
 
     _train_on_batch_f = _get_train_on_batch_f(generator, discriminator, gan, accumulator)
 
-    difficulty = 5
+    difficulty = 10
     dataset = get_dataset(encoders, difficulty)
     train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
     for epoch in range(config.NUM_EPOCHS):
-        if epoch > 150 and epoch % 10 == 0:
-            difficulty += 1
-            dataset = get_dataset(encoders, difficulty)
-            train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
+        # if epoch >= 150 and epoch % 10:
+        #     difficulty += 1
+        #     dataset = get_dataset(encoders, difficulty)
+        #     train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
         start_time = time.time()
         for b, (text_inputs_dict, images) in enumerate(train_data):
             print(f"{b} completed", end="\r")
