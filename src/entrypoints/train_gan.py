@@ -65,15 +65,20 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
 
         if _D in train_part:
             # Minimize gradient penalty
-            gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, fake_images)
-            accumulator.update(gradient_penalizer, gp_loss)
+            # gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, fake_images)
+            # accumulator.update(gradient_penalizer, gp_loss)
 
             # Train discriminator
-            # train_discriminator(fake_images, text_inputs_dict, is_real=False)
-            # train_discriminator(real_images, text_inputs_dict, is_real=True)
+            train_discriminator(fake_images, text_inputs_dict, is_real=False)
+            train_discriminator(real_images, text_inputs_dict, is_real=True)
             shuffled_text_inputs_dict = _shuffle_text(text_inputs_dict)
             train_discriminator(real_images, shuffled_text_inputs_dict, is_real=False)
             train_discriminator(real_images, text_inputs_dict, is_real=True)
+
+            # shuffled_images = tf.random.shuffle(real_images)
+            # gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, shuffled_images)
+            # accumulator.update(gradient_penalizer, gp_loss)
+
 
         # Train GAN
         if _G in train_part:
@@ -108,7 +113,7 @@ def train(restore):
     dataset = get_dataset(encoders, difficulty)
     train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
     for epoch in range(config.NUM_EPOCHS):
-        # if epoch >= 150 and epoch % 10:
+        # if epoch >= 150 and epoch % 10==0:
         #     difficulty += 1
         #     dataset = get_dataset(encoders, difficulty)
         #     train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
