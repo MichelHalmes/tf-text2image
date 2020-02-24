@@ -5,6 +5,7 @@ from tabulate import tabulate
 import tensorflow.keras as K
 import tensorflow as tf
 
+import config
 
 
 def _product(iterable):
@@ -54,24 +55,22 @@ def print_model_summary(model):
  
 
 
-class CustomSchedule(K.optimizers.schedules.LearningRateSchedule):
-    def __init__(self, max_lr, warmup_steps):
+class CustomLrSchedule(K.optimizers.schedules.LearningRateSchedule):
+    def __init__(self, ):
         super().__init__()
-        self.max_lr = tf.cast(max_lr, tf.float32)
-        self.warmup_steps = tf.cast(warmup_steps, tf.float32)
+        self._max_lr = tf.cast(config.DIS_LR, tf.float32)
+        self._half_steps = tf.cast(config.DIS_LR_HALF_EPOCH*config.STEPS_PER_EPOCH, tf.float32)
         
     def __call__(self, step):
-        arg1 = tf.math.rsqrt(step)
-        arg2 = step * (self.warmup_steps ** -1.5)
-
-        return self.max_lr * tf.math.minimum(arg1, arg2) / tf.math.rsqrt(self.warmup_steps)
+        self._curr_lr = self._max_lr * tf.math.pow(config.DIS_LR_DECAY, tf.math.floor((1+step)/self._half_steps))
+        return self._curr_lr
 
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    temp_learning_rate_schedule = CustomSchedule(.001, 100)
-    plt.plot(temp_learning_rate_schedule(tf.range(1000, dtype=tf.float32)))
+    temp_learning_rate_schedule = CustomLrSchedule()
+    plt.plot(temp_learning_rate_schedule(tf.range(100000, dtype=tf.float32)))
     plt.ylabel("Learning Rate")
     plt.xlabel("Train Step")
 

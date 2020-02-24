@@ -12,7 +12,7 @@ import tensorflow.keras as K
 import tensorflow as tf
 
 import config as cfg
-from utils import CustomSchedule, print_model_summary
+from utils import CustomLrSchedule, print_model_summary
 from losses import tanh_cross_entropy, wasserstein_loss, binary_crossentropy, alternative_binary_crossentropy
 from minibatch_discrim import MinibatchDiscrimination
 
@@ -141,12 +141,12 @@ def _get_discriminator_model(text_rnn):
     minibatch_features = MinibatchDiscrimination(num_kernels=30, dim_per_kernel=7)(image_features)
 
     features = concatenate([image_features, minibatch_features, texts_features])
-    logits_p_real = Dense(1)(features)  # TODO !!!!!!!!!!!!!!! READD useboas false
+    logits_p_real = Dense(1, use_bias=not cfg.USE_WGAN_GP)(features)
 
     model = Model(inputs=text_inputs+[image_input], outputs=logits_p_real, name="discriminator")
     text_rnn.trainable = False  # TODO
-    model.compile(loss=binary_crossentropy,
-                optimizer=K.optimizers.Adam(learning_rate=cfg.DIS_LR, beta_1=cfg.DIS_BETA_1, beta_2=cfg.DIS_BETA_2),
+    model.compile(loss=wasserstein_loss if cfg.USE_WGAN_GP else binary_crossentropy,
+                optimizer=K.optimizers.Adam(learning_rate=CustomLrSchedule(), beta_1=cfg.DIS_BETA_1, beta_2=cfg.DIS_BETA_2),
                 metrics=[K.metrics.BinaryAccuracy(threshold=.0)]  # Since we output logits, threshold .0 corresponds to .5 on the sigmoid
     )
     return model
@@ -159,8 +159,8 @@ def _get_gan_model(generator, discriminator):
     
     model = Model(inputs=text_inputs, outputs=logits_p_real, name="gan")
     discriminator.trainable = False
-    model.compile(loss=binary_crossentropy,
-                optimizer=K.optimizers.Adam(learning_rate=cfg.DIS_LR, beta_1=cfg.DIS_BETA_1, beta_2=cfg.DIS_BETA_2)
+    model.compile(loss=wasserstein_loss if cfg.USE_WGAN_GP else binary_crossentropy,
+                optimizer=K.optimizers.Adam(learning_rate=CustomLrSchedule(), beta_1=cfg.DIS_BETA_1, beta_2=cfg.DIS_BETA_2)
     )
     return model
 

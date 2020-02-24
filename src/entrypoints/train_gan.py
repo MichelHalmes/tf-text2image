@@ -64,21 +64,20 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
         fake_images = generator(text_inputs_dict, training=False)
 
         if _D in train_part:
-            # Minimize gradient penalty
-            # gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, fake_images)
-            # accumulator.update(gradient_penalizer, gp_loss)
-
-            # Train discriminator
-            train_discriminator(fake_images, text_inputs_dict, is_real=False)
-            train_discriminator(real_images, text_inputs_dict, is_real=True)
-            shuffled_text_inputs_dict = _shuffle_text(text_inputs_dict)
-            train_discriminator(real_images, shuffled_text_inputs_dict, is_real=False)
-            train_discriminator(real_images, text_inputs_dict, is_real=True)
-
-            # shuffled_images = tf.random.shuffle(real_images)
-            # gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, shuffled_images)
-            # accumulator.update(gradient_penalizer, gp_loss)
-
+            if config.USE_WGAN_GP:
+                # Minimize gradient penalty
+                gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, fake_images)
+                accumulator.update(gradient_penalizer, gp_loss)
+                shuffled_images = tf.random.shuffle(real_images)
+                gp_loss = gradient_penalizer.run_on_batch(text_inputs_dict, real_images, shuffled_images)
+                accumulator.update(gradient_penalizer, gp_loss)
+            else:
+                # Train discriminator
+                train_discriminator(fake_images, text_inputs_dict, is_real=False)
+                train_discriminator(real_images, text_inputs_dict, is_real=True)
+                shuffled_text_inputs_dict = _shuffle_text(text_inputs_dict)
+                train_discriminator(real_images, shuffled_text_inputs_dict, is_real=False)
+                train_discriminator(real_images, text_inputs_dict, is_real=True)
 
         # Train GAN
         if _G in train_part:
@@ -121,7 +120,7 @@ def train(restore):
         for b, (text_inputs_dict, images) in enumerate(train_data):
             print(f"{b} completed", end="\r")
             train_part = TRAIN_D if epoch < 5 else \
-                        TRAIN_GD # if b%2 == 0 else TRAIN_D
+                        TRAIN_GD if b%3 == 0 or epoch <=200 else TRAIN_D
             _train_on_batch_f(text_inputs_dict, images, train_part)
         accumulator.accumulate(epoch)
         logger.on_epoch_end(epoch)
