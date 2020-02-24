@@ -120,7 +120,7 @@ def train(restore):
         for b, (text_inputs_dict, images) in enumerate(train_data):
             print(f"{b} completed", end="\r")
             train_part = TRAIN_D if epoch < 5 else \
-                        TRAIN_GD if b%3 == 0 or epoch <=200 else TRAIN_D
+                        TRAIN_GD if b%2 == 0 or epoch <=200 else TRAIN_D
             _train_on_batch_f(text_inputs_dict, images, train_part)
         accumulator.accumulate(epoch)
         logger.on_epoch_end(epoch)

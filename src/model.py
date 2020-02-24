@@ -2,7 +2,7 @@
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import (
     Input, Embedding, GRU, 
-    concatenate, Reshape, Flatten, Dense, Lambda,
+    concatenate, Reshape, Flatten, Dense, Lambda, Add,
     LayerNormalization, BatchNormalization, Dropout, GaussianNoise,
     LeakyReLU, Activation,
     Conv2D, Conv2DTranspose    
@@ -71,13 +71,13 @@ def _get_text_rnn_model(encoders):
 def _get_generator_model(text_rnn, gen_trains_rnn):
     text_inputs = _get_text_inputs()
     texts_features = text_rnn(text_inputs)
-    def generate_noise(text_inputs):
-        shape = [Kb.shape(text_inputs[0])[0], cfg.NOISE_DIM]  # Batch x Dim
+    def generate_latent(text_inputs):
+        shape = [Kb.shape(text_inputs[0])[0], cfg.LATENT_DIM]  # Batch x Dim
         return Kb.random_uniform(shape=shape, minval=-1., maxval=1.)
     
-    noise = Lambda(generate_noise)(text_inputs)
+    latent = Lambda(generate_latent)(text_inputs)
 
-    features = concatenate([texts_features, noise])
+    features = concatenate([texts_features, latent])
 
     FEAT_HW = 4
     FEAT_C = 32
@@ -87,8 +87,9 @@ def _get_generator_model(text_rnn, gen_trains_rnn):
     def deconv(feature_map, n_out):
         feature_map = Conv2DTranspose(filters=n_out, kernel_size=5, padding="same", strides=2, use_bias=False)(feature_map)
         feature_map = LayerNormalization()(feature_map)
-        feature_map = LeakyReLU(alpha=.1)(feature_map)
-        feature_map = Conv2D(filters=n_out, kernel_size=4, padding="same", strides=1)(feature_map)
+        res_feature_map = LeakyReLU(alpha=.1)(feature_map)
+        res_feature_map = Conv2D(filters=n_out, kernel_size=4, padding="same", strides=1)(res_feature_map)
+        feature_map = Add()([feature_map, res_feature_map])
         feature_map = LeakyReLU(alpha=.1)(feature_map)
         return feature_map
 
@@ -116,14 +117,15 @@ def _get_discriminator_model(text_rnn):
 
     def conv(feature_map, n_filters):
         feature_map = Conv2D(filters=n_filters, kernel_size=4, padding="same", strides=2)(feature_map)
-        feature_map = LeakyReLU(alpha=.1)(feature_map)
         feature_map = Dropout(cfg.DROP_PROB)(feature_map)
-        feature_map = Conv2D(filters=n_filters, kernel_size=4, padding="same", strides=1)(feature_map)
+        res_feature_map = LeakyReLU(alpha=.1)(feature_map)
+        res_feature_map = Conv2D(filters=n_filters, kernel_size=4, padding="same", strides=1)(res_feature_map)
+        feature_map = Add()([feature_map, res_feature_map])
         feature_map = LeakyReLU(alpha=.1)(feature_map)
         return feature_map
 
     image_input = Input(shape=[cfg.IMAGE_H, cfg.IMAGE_W, 3], name="image")
-    feature_map = GaussianNoise(.1)(image_input)
+    feature_map = GaussianNoise(cfg.NOISE_VAR)(image_input)
     feature_map = Lambda(lambda img: Kb.clip(img, -1., 1.))(feature_map)
     feature_map = conv(feature_map, 16)  #16
 
@@ -138,7 +140,7 @@ def _get_discriminator_model(text_rnn):
     feature_map = Dropout(cfg.DROP_PROB)(feature_map)
 
     image_features = Flatten()(feature_map)
-    minibatch_features = MinibatchDiscrimination(num_kernels=30, dim_per_kernel=7)(image_features)
+    minibatch_features = MinibatchDiscrimination(num_kernels=cfg.MBD_KERNELS, dim_per_kernel=cfg.MBD_DIMS)(image_features)
 
     features = concatenate([image_features, minibatch_features, texts_features])
     logits_p_real = Dense(1, use_bias=not cfg.USE_WGAN_GP)(features)

@@ -5,7 +5,7 @@ import config
 
 class MinibatchDiscrimination(K.layers.Layer):
 
-    def __init__(self, num_kernels=100, dim_per_kernel=5, **kwargs):
+    def __init__(self, num_kernels, dim_per_kernel, **kwargs):
         super().__init__(**kwargs)
         self._num_kernels = num_kernels  # `B` in the paper
         self._dim_per_kernel = dim_per_kernel  # `C` in the paper
