@@ -117,15 +117,16 @@ def train(restore):
         #     dataset = get_dataset(encoders, difficulty)
         #     train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
         start_time = time.time()
+        discr_only_steps = epoch // 200
         for b, (text_inputs_dict, images) in enumerate(train_data):
             print(f"{b} completed", end="\r")
             train_part = TRAIN_D if epoch < 5 else \
-                        TRAIN_GD if b%2 == 0 or epoch <=200 else TRAIN_D
+                        TRAIN_GD if b%(discr_only_steps+1)== 0  else TRAIN_D
             _train_on_batch_f(text_inputs_dict, images, train_part)
         accumulator.accumulate(epoch)
         logger.on_epoch_end(epoch)
-        logging.info("Done with epoch %s took %ss (difficulty=%s)", 
-                        epoch, round(time.time()-start_time, 2), difficulty)
+        logging.info("Done with epoch %s took %ss (difficulty=%s; discr_only_steps=%s)", 
+                        epoch, round(time.time()-start_time, 2), difficulty, discr_only_steps)
 
 
 if __name__ == "__main__":
