@@ -117,7 +117,7 @@ def train(restore):
         #     dataset = get_dataset(encoders, difficulty)
         #     train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
         start_time = time.time()
-        discr_only_steps = epoch // 200
+        discr_only_steps = 0
         for b, (text_inputs_dict, images) in enumerate(train_data):
             print(f"{b} completed", end="\r")
             train_part = TRAIN_D if epoch < 5 else \
