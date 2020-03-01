@@ -59,7 +59,7 @@ class CustomLrSchedule(K.optimizers.schedules.LearningRateSchedule):
     def __init__(self, ):
         super().__init__()
         self._max_lr = tf.cast(config.DIS_LR, tf.float32)
-        self._half_steps = tf.cast(config.DIS_LR_HALF_EPOCH*config.STEPS_PER_EPOCH, tf.float32)
+        self._half_steps = tf.cast(config.DIS_LR_DECAY_EPOCH*config.STEPS_PER_EPOCH, tf.float32)
         
     def __call__(self, step):
         self._curr_lr = self._max_lr * tf.math.pow(config.DIS_LR_DECAY, tf.math.floor((1+step)/self._half_steps))

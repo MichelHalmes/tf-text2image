@@ -146,7 +146,7 @@ def _get_discriminator_model(text_rnn):
     logits_p_real = Dense(1, use_bias=not cfg.USE_WGAN_GP)(features)
 
     model = Model(inputs=text_inputs+[image_input], outputs=logits_p_real, name="discriminator")
-    text_rnn.trainable = False  # TODO
+    text_rnn.trainable = True
     model.compile(loss=wasserstein_loss if cfg.USE_WGAN_GP else binary_crossentropy,
                 optimizer=K.optimizers.Adam(learning_rate=CustomLrSchedule(), beta_1=cfg.DIS_BETA_1, beta_2=cfg.DIS_BETA_2),
                 metrics=[K.metrics.BinaryAccuracy(threshold=.0)]  # Since we output logits, threshold .0 corresponds to .5 on the sigmoid

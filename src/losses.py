@@ -147,8 +147,6 @@ def alternative_binary_crossentropy(y_true, y_pred):
 
 
     
-
-
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
