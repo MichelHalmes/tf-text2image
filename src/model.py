@@ -140,9 +140,11 @@ def _get_discriminator_model(text_rnn):
     feature_map = Dropout(cfg.DROP_PROB)(feature_map)
 
     image_features = Flatten()(feature_map)
-    minibatch_features = MinibatchDiscrimination(num_kernels=cfg.MBD_KERNELS, dim_per_kernel=cfg.MBD_DIMS)(image_features)
+    features = concatenate([image_features, texts_features])
+    if cfg.USE_MBD:
+        minibatch_features = MinibatchDiscrimination(num_kernels=cfg.MBD_KERNELS, dim_per_kernel=cfg.MBD_DIMS)(image_features)
+        features = concatenate([features, minibatch_features])
 
-    features = concatenate([image_features, minibatch_features, texts_features])
     logits_p_real = Dense(1, use_bias=not cfg.USE_WGAN_GP)(features)
 
     model = Model(inputs=text_inputs+[image_input], outputs=logits_p_real, name="discriminator")
