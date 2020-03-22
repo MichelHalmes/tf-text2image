@@ -112,7 +112,7 @@ def train(restore):
     dataset = get_dataset(encoders, difficulty)
     train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
     for epoch in range(config.NUM_EPOCHS):
-        # if epoch >= 150 and epoch % 10==0:
+        # if epoch >= 500 and epoch % 10==0:
         #     difficulty += 1
         #     dataset = get_dataset(encoders, difficulty)
         #     train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)

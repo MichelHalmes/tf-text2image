@@ -140,7 +140,7 @@ class GradientPenalizer(object):
 binary_crossentropy = K.losses.BinaryCrossentropy(from_logits=True)
 
 @tf.function
-def alternative_binary_crossentropy(y_true, y_pred):
+def saturating_binary_crossentropy(y_true, y_pred):
     """ For the generator, we use log(1-D(G(z))) instead of -log(D(G(z))) """
     y_true = 1. - y_true
     return - binary_crossentropy(y_true, y_pred)

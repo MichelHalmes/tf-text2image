@@ -99,43 +99,103 @@ We also train a discriminator using the converged generator. We observe that nea
 
 # Part 2: A Generative Adversarial Net
 
-Next, we train a GAN on our synthetic data. The gan is composed of the generator and the discriminator just mentioned.
+Next, we train a GAN on our synthetic data. The GAN is composed of the generator and the discriminator just mentioned. When building these networks, we considered the general advice of [Radford et al. 2015](https://arxiv.org/pdf/1511.06434.pdf) to build DCGAN.
 
-Note that our GAN differs from a standard gan and could be qualified as "fully-conditional GAN". That is, we only have conditional data as input, no latent variable z. This is similar to [Isola et al. 2016](https://arxiv.org/abs/1611.07004), who generate an image condtional on another image. They can hence use a U-net based generator that uses local featires of the conditinal iage to generate the image. In our case the input is text representation where such an approch is not feasible.
+Note that our GAN differs from a standard GAN and could be qualified as "fully-conditional GAN". That is, we only have conditional data as input, no latent variable `z`. This is similar to [Isola et al. 2016](https://arxiv.org/abs/1611.07004), who generate an image conditional on another image. Their generator takes therfore the form of a U-net which leverages local features of the conditional image to generate the image. In other words, the fact that the confitional and generated data are in the same domain, thay can leverage the condifitonal information very well. This is in contrast to our problem: the text representation at the input is very remote to the image domain at the output.
 
-It is probably for that reason that this task turned out to be challenging as the training of the GAN is very unstable (as it is known to be).
+Another difficulty to our problem are the extremly regular images that have to be generated; both content and background are pefectly uniform in color and edges very sharp. This makes is very easy for the discriminatore to distinguish real from fake images without having to learn anything about the features in the image, hence not providing meaniful gradient to the generator.
 
-Anothe difficulty is extrempy regular images
+It is for these two reasons that this task turned out to be very challenging. Training of the GAN was very unstable (as it is known to be) and we had to introduce ,any improvements to the vanilla GAN to get good results.
 
 It is interesting to note that because the link between our text input and our images is deterministic. We can therfore define an exact evaluation metric for our GAN. This is contrary to most literature in the field. We decide to use the mean absolute error (MAE) since it seemed to be a more stable metric than RMSE.
 
-Several improvements over a standard GAN had to be made to give satisfying results:
+## Ablation study
 
-Beta1=.9* **Adam**: As is common with GANs, we use Adam for optimization. It turned out however, that the default values for β did not work. We had to redude β1, which controls momentum from .9 to .5 and β2, which controls adaptiveness to the gradient norm, from .99 to .9. This indicates that the direction and norm of our gradients change significantly over the course of the optimization.
-LR.0001 || LRx3* **Learning rate**: The literature advises the use of a low learning rates to facilitat covergence. It turned out, that our learning rate of 5-e5 is about one matter of size lower than is common. XXXX_CITE
-NoMBD || WithMBD& WithMBD&NoShuffle * **Minibatch Discrimination**: One problem of our GAN (and GANs in general) is mode collaps, where all generated images are almost identical. Once mode collaps occurs, there is no way to escape it. To help the discriminator detect this [Salimans et al. 2016](https://arxiv.org/abs/1606.03498) suggest Minibatch Discrimination (MBD). This technique allows the discriminator to look at multiple images from one batch and detect features common between them. For this technique to work, fake and real images have to be provided to the discriminator in separate batches (see next point).
-N/A* **Separate real & fake batches**: We feed batches of fake and real images separately to the discriminator. Besides simplifying the implementation a little, this has also the effect of accelerating and improving convergence. This is because doing so effectively increases the learnign rate of the discriminator. Like most public implementation, we use the same parameters when training the discriminator and generator. One would however expect that the generator (since effectively a lot deeper from a gradient perspective) is much harder to train and would require more conservative optimization parameter than the discriminqtor. It is also known that the generator can only be as good as the discriminator. Allowing the discriminator to converge faster, can thus only be beneficial. To our supprise and to our knowledge, using higher learnign rate for the discriminator (and in general more suited optimization parameters) is not explored in the literature.
-DiscOnlySteps* **Discriminator only steps**: The original GAN  XXXX_CITE paper suggests training the Disciminator only for `k` steps and then the generator as well for one step. We find that this slows down convergence. The fact that this is not needed is most likely due to the effectively higher learning-rate for the discriminator mentionioned in the previous point
-FullVocab* **Limited vocabulary**: Our original vocabulary made of numbers and case-sensitive letters has size 62. This turns out to be too big to converge successfully. We therefore reduce our vocabulary to numbers only, thus having size 10.
-TrainRNN* **Pretrained text_rnn**: As mentioned above, our approach differs from usual (c)GANs by the fact that our input is text and not images and categorical one hot encodings. The presence of the text RNNs makes our network very deep. We find that the only way to get convergence is to initalize the RNN with weights pretrained supervisedly (see Part 1). We do however nerver fx these weights and propagate gradients all the way through.
-NoShuffle* **Shuffled images**: Our GAN manages quickly to produce images with the right background size and colours. It does however not manage to generate clearly identifiable characters. This is because the discriminator is able to distinguish real from fake based on other features such as the smoothness of edges. It will never have to identify individual characters and match them against the text. To mitigate this, we also feed the discriminator with real images combined with random text and label it as fake data. This forces the discriminator to actually read the image and text properly and provide good gradients to the generator. This method is generalizable to other cGANs and to our knowledge not present in the literature.
+The following graph shows the MAE of various setups of our GAN. Below we discuss the changes we had to make to generate high quality images
 
-To avercome convergence issues, we implement one of the most advanced approaches to GANs, a [Wasserstain GAN](https://arxiv.org/abs/1701.07875).
-We observe that a WGAN does not achieve much faster convergence initally compared than using the standard crossentropy loss. This is because, as is the promise of this approach, the gradients never saturate, which they otherwise when the generator is poor. 
+##### Shuffled text as fake data
+Our GAN manages quickly to produce images with the right background size and colours. It does however not manage to generate clearly identifiable characters. This is because the discriminator is able to distinguish real from fake based on other features such as the smoothness of edges. It will never have to identify individual characters and match them against the text. To mitigate this, we also feed the discriminator with real images associated with random text and train it to identify it as fake data. This forces the discriminator to actually read the image and text properly and provide good gradients to the generator. This method is generalizable to other cGANs and to our knowledge, not present in the literature. 
 
-Unfortunately, convergence stagnates quickly before the generator is able to recognizeable characters. It turns out that the cross entropy is able to produce better gradients eventually which seems to be the most challenging part of trainig our GAN. This conclusion is in line with [Lucic et al. 2018](https://arxiv.org/abs/1711.10337), who conclude that many versions of "improved" GANs do effectively not beat the implementation of the original paper.
+In practice, we take a batch of real images and text and shuffle the `chars`, `spec` or both. More precisely, with 60% we shuffle characters only forcing the discriminator to learn our vocabulary.
 
-* **Gradient Penalty**: We fund that imposing the Lipschitz constraint via weight clipping does prevent convergence. [Gulrajani et al. 2017](https://arxiv.org/abs/1704.00028) impose a soft unit norm constraint on the gradient with respect to the input. Implementing this was challenging because of an [issue in Keras](https://github.com/tensorflow/tensorflow/issues/36436). We therefore had to optimize the constraint in a seperate step (as opposed to a single step which optimizes also the distance betweent he distributions of real and fake images). This is however anyways required to use with MBD, which is essential for good results.
-* **Shared optimizer**: It turned out that optimizing the constraint separately from optimizing the distance measure made traingin g veri sentive to the value of the balancing factor λ. To mitigate this, we use the same optimizer for both steps. The stabilization comes from the  adaptive gradients included in Adam, effectively coordiating the gradients between both steps.
-* **No momentum**: We use Adam without momentum (β1=0). This is because the fast convergence of the WGAN-GP causes the discriminator XXXXXG_G_OR_D to change a lot between steps, and hence varying the direction of the generator's g gradients making momentum countra-productive.
+In the graph above, series `-Shuffle` shows training without this feature. As one can see convergence is basically non existent without this feature. We did find ways to get convergence without this feature (eg lowering the learning rate and MBD (see next section)). Yet, this feature remains the most essential improvement brougth to our model. We believe that this approach could also help convergence of other cGANs.
+
+##### Minibatch Discrimination
+One problem of our GAN (and GANs in general) is mode-collapse, where all generated images are almost identical. Once mode collaps occurs, as shown in the image below, there is no way to escape it. To help the discriminator detect this [Salimans et al. 2016](https://arxiv.org/abs/1606.03498) suggest Minibatch Discrimination (MBD). This technique allows the discriminator to look at multiple images from one batch and detect features common between them. For this technique to work, fake and real images have to be provided to the discriminator in separate batches (see next section).
+
+<img src="media/mode_collapse.png" alt="D_train" width="200">
+
+It turns out that with text shuffling, this method is actually counter productive as shown in series `+MBD`. In many situations where trainign is unstable, this method does  help however as is shown in series `-Shuffle+MBD`. We conclude therefore, that MBD acts as a patch to instabilites, but introduces training difficulties on its own and shoudl therefore avoided if possible. We also note that, MBD introduces many parameters to the discriminator and malkes it consequently a lot slower.
+
+##### Separate real & fake batches
+We feed batches of fake and real images separately to the discriminator. Besides simplifying the implementation a little, this has also the effect of accelerating and improving convergence. This is because doing so effectively increases the learnign rate of the discriminator. Like most public implementations, we use the same parameters when training the discriminator and generator. One would however expect that the generator is much harder to train since it is effectively a lot deeper from a gradient perspective. It would require more conservative optimization parameter than the discriminqtor. It is also known that the generator can only be as good as the discriminator. Allowing the discriminator to converge faster, can thus only be beneficial. To our supprise and to our knowledge, using higher learning rate for the discriminator (and in general more suited optimization parameters) is not explored in the literature.
+
+For comparison, series `+Real&FakeStep` combines the updates into as single step and we obselved slowed down convergence.
+
+##### Learning rate
+The literature advises the use of a low learning rates to facilitate covergence. In order to achieve convergence with a majority of our setups, we require a learnign rate of `5-e5`, which turns out to be about one matter of size lower than is common (`2e-4` is advised for [DCGANs](https://arxiv.org/pdf/1511.06434.pdf)). Our final setup however, 
+is so stable, especially due to text shuffling, that training succeeds with a learning rate of `5e-4` as shown in series `LRx10`. For our abalation studies, we keep a low learning rate to make sure the instability are not due to this factor.
+
+##### Adam 
+As is common with GANs, we use Adam for optimization. In many setups however and in accordance with [Radford et al. 2015](https://arxiv.org/pdf/1511.06434.pdf), the default values for `β` did not work. We had to redude `β1`, which controls momentum from `.9` to `.5` and `β2`, which controls adaptiveness to the gradient norm, from `.99` to `.9` . This indicates that the direction and norm of our gradients change significantly over the course of the optimization. 
+
+In the graph of our abaltion study, series `AdamParams` has been run with the default parameters. The difference is marginal for our baseline setup, which is again due to text shuflling: Since the shuffled data does not come from our generator, this method has the effect of making the disciminator training more decoupled from the current state of the generator. This tends to stabilize the gradients accross epochs for the discriminator. An additional benefit of text-shuffling, we haven't mentioned so far.
+
+##### Limited vocabulary
+Our original vocabulary made of numbers and case-sensitive letters has size 62. This turns out to be too big to converge successfully. We therefore reduce our vocabulary to numbers only, thus having size 10. This essentially means that the size of our dataset has size 6400. At such a small datset size, we are essentailly learning to overfit (despites method like dropout and layernorm mitigating against this). The challenge is however, to get such a difficult to train model to overfit. As shown here, many improvements are required to get there.
+
+In series `FullVocab` we train the model with the full vocabulary size, ie an effective dataset size of 246K. Our models does converge, yet much slower.
+This shows that our method is not purely on overfitting. The limited vocab allows just for accelerated training, hence faster comparison of different model variants.
+
+We also experiemnt with a variant where the first 500 epochs run with the default vocabulary size of 10. Every 10 epochs therafter, we introduce one character to the vocabulary. The idea is to first get a model overfit on a small data. Since it is trained with methods to avoid overfitting, it will actually manage to learn fetures that it would not have leaned on a too big hence too difficult dataset. As we increase the size of the datset, the hope is that thse features can be gradually generalized on the whole dataset. In other words, learning generalized fetures is easier to be done gradually that in one shot in hard to train setups such as gans. 
+
+Series `IncrementVocab` shows that this ideas does inde have merit. It is worth noticing that in our case of generated data, increasing the difficulty of the dataset comes naturally. This method is however generalizeable to any dataset by just increasing the size of the datasets per epoch. Many sucessful methods to avoid ovefitting have been developed in the past decade, using overfitting initially to overcome training instabilities is an interesting idea for research.
 
 
+##### Pretrained text-RNN
+As mentioned above, our approach differs from usual (c)GANs by the fact that our input is text and not images and categorical one hot encodings. The presence of the text RNNs makes our network very deep. We find that a way to accelerate convergence is to initalize the RNN with weights pretrained supervisedly (see Part 1). We do however nerver fix these weights and propagate gradients all the way through. 
 
-We followed many aprroaches to improving performance, many of which did not have any impact. We list some of those below for completeness:
-Latent * **Latent variable z**: We attempted feeding a generator with a latent variable as is common in cGANs. The idea is that the randomness coming from z migh facilutae the genrating realisitng images independently from the text initially. Only later the generator might make its output conditional on the text
-SaturatingLoss* **Non saturating loss**: At the bigging of traing, GANs suffer form a saturated disrcimintor, since the distribution of the real and fake distributions are very different. Therefore the [original paper](https://arxiv.org/abs/1711.10337) suggested a modified version of the cross entropy to avoid this. We find however that this not required. At least in our case, the difficulty is more to reach full convergence, rather that starting convergence initially.
-LrDecay * **Learning rate decay**:
-NoNoise * **Noise**: As suggested by [https://arxiv.org/abs/1701.04862](Arjovsky et al. 2017) adding noise to real and fake images before feeding them to the discriminator stabilizes training. Keras allows doing this as part of the model. 
+Series `-RNNinit` shows that even with randomly initialized weights, training convergence. All credit goes again to training the discriminator with with shuffled data. 
+As mentined in the section about Adam, the fact that the discriminator sees real and fake data which is not generated by the generator, allows it to make conclusions about the meaning of our conditional data. Only this makes training a neural network which provides the conditional data possible. To our knowledge, this is the first time this has been done.
+Note that we do not allow the generator to propagate its gradient into the RNN. Doing so would allowit to sabotage the RNN and prevent the discriminator from usin conditinal information. 
+
+##### Noise
+As suggested by [Arjovsky et al. 2017](https://arxiv.org/abs/1701.04862) adding noise to real and fake images before feeding them to the discriminator stabilizes training. Keras allows doing this as part of the model. As mentioned above, our images are extremely regular. Adding noise is particularly useful to avoid the disciminator distinguishing between real and fake images just by measuring the uniformity of color. One nice feature of ceras is that we do not manualy add noic e to the data, but instead do this as a specific layer of the network.
+
+Series `-ImgNoise` relates to this featire in our ablation study. Impact is again minimal in combination with text-shuffling, yet this feature had more impact in less powerful setups.
+
+
+### A note on Wassersstein-GANs
+To avercome convergence issues, we also implement one of the most advanced approaches to GANs, a [Wasserstain GAN](https://arxiv.org/abs/1701.07875).
+We observe that a WGAN does achieve a much faster convergence initally compared than using the standard crossentropy loss. This is because, as is the promise of this approach, the gradients never saturate, which they otherwise do when the generator is poor. 
+
+Unfortunately, as shown in series `WGAN-GP`, convergence stagnates quickly before the generator is able to recognizeable characters. It turns out that the cross entropy is able to produce better gradients further down in the training, which seems to be the most challenging part of training our GAN. Our observation is in line with [Lucic et al. 2018](https://arxiv.org/abs/1711.10337), who conclude that many versions of "improved" GANs do effectively not beat the implementation of the original paper.
+
+To make the Wasserstein GAN work, we again had to introduce many imrpovements.
+
+##### Gradient Penalty
+We fund that imposing the Lipschitz constraint via weight clipping does prevent convergence. [Gulrajani et al. 2017](https://arxiv.org/abs/1704.00028) impose a soft unit norm constraint on the gradient with respect to the input. Implementing this was challenging because of an [issue in Keras](https://github.com/tensorflow/tensorflow/issues/36436). We therefore had to optimize the constraint in a seperate step (as opposed to a single step which optimizes also the distance between the distributions of real and fake images). This is however not a blocking issue since we training real and fake images separately in any case.
+
+##### Shared optimizer
+It turned out that optimizing the constraint separately from optimizing the distance measure made trainging veriy sentive to the value of the balancing factor `λ`. To mitigate this, we use the same optimizer for both steps. The stabilization comes from the adaptive gradients included in Adam, effectively coordiating the gradients between both steps.
+
+##### No momentum
+We use Adam without momentum (`β1`=0). This is because the fast convergence of the WGAN-GP causes the discriminator XXXXXG_G_OR_D to change a lot between steps, and hence varying the direction of the generator's g gradients making momentum countra-productive.
+
+
+### What didn't work
+
+We investigated various aprroaches to improving performance, many of which did not have any impact. We list some of those below for completeness:
+
+##### Latent variable
+We attempted feeding a generator with a latent variable as is common in cGANs. The idea is that the randomness coming from `z` migh facilitate generating realisitc images independently from the text initially. Only later the generator might make its output conditional on the text. We obeserved however that adding latent nois was detrimental to generation ability.
+
+##### Non saturating loss
+At the beginning of trainig, GANs suffer form a saturated discrimintor, since the distribution of the real and fake distributions are very different. Therefore the original paper by [Goodfellow et al. 2014](https://arxiv.org/abs/1406.2661) suggested a modified version of the cross entropy to avoid this. We find however that is actually detrimental. At least in our case, the challenge is more to reach full convergence eventually, rather that starting convergence initially.
+
+##### Discriminator only steps
+The original GAN [paper](https://arxiv.org/abs/1406.2661) suggests training the Disciminator only for `k` steps and then the generator as well for one step. We find that this slows down convergence. The fact that this is not needed is most likely due to the effectively higher learning-rate for the discriminator introduced by trainign real and fake images separately (see above).
+ 
 
 
 

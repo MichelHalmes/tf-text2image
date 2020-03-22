@@ -13,7 +13,7 @@ import tensorflow as tf
 
 import config as cfg
 from utils import CustomLrSchedule, print_model_summary
-from losses import tanh_cross_entropy, wasserstein_loss, binary_crossentropy, alternative_binary_crossentropy
+from losses import tanh_cross_entropy, wasserstein_loss, binary_crossentropy, saturating_binary_crossentropy
 from minibatch_discrim import MinibatchDiscrimination
 
 def get_generator(encoders):
