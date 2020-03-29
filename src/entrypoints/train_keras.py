@@ -16,7 +16,6 @@ import config
 from evaluation import EvaluationLogger
 
 
-
 @click.command()
 @click.option("--restore/--no-restore", default=True, help="Reinititalize the model or restore previous checkpoint")
 def train(restore):
@@ -42,12 +41,11 @@ def train(restore):
     train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
     # val_data = dataset.batch(config.BATCH_SIZE).take(8)
     generator.fit(train_data, epochs=config.NUM_EPOCHS, initial_epoch=initial_epoch,
-                # validation_data=val_data, 
+                # validation_data=val_data,
                 callbacks=callbacks)
 
     checkpoint_path = path.join(config.CHECKPOINT_DIR, "keras", "text_rnn.ckpt")
     text_rnn.save_weights(checkpoint_path)
-
 
 
 if __name__ == "__main__":

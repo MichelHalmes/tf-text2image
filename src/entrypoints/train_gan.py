@@ -48,7 +48,7 @@ def _shuffle_text(text_inputs_dict):
 
 def _get_train_discriminator_f(discriminator, accumulator):
     def train_discriminator(images, text_inputs_dict, is_real):
-        inputs_dict  = {"image": images, **text_inputs_dict}
+        inputs_dict = {"image": images, **text_inputs_dict}
         labels = tf.ones(config.BATCH_SIZE) if is_real \
                     else tf.zeros(config.BATCH_SIZE)
         d_loss = discriminator.train_on_batch(inputs_dict, labels)
@@ -84,7 +84,7 @@ def _get_train_on_batch_f(generator, discriminator, gan, accumulator):
             labels = tf.ones(config.BATCH_SIZE)
             gan_loss = gan.train_on_batch(text_inputs_dict, labels)
             accumulator.update(gan, gan_loss)
-        
+
         # Get generator metrics
         generator.reset_metrics()
         gen_loss = [f(real_images, fake_images).numpy() for f in generator.loss_functions+generator.metrics]
@@ -117,16 +117,16 @@ def train(restore):
         #     dataset = get_dataset(encoders, difficulty)
         #     train_data = dataset.batch(config.BATCH_SIZE).take(config.STEPS_PER_EPOCH)
         start_time = time.time()
-        discr_only_steps = 0 #if epoch < 500 else 1
+        discr_only_steps = 0  # if epoch < 500 else 1
         for b, (text_inputs_dict, images) in enumerate(train_data):
             print(f"{b} completed", end="\r")
             train_part = TRAIN_D if epoch < 5 else \
-                        TRAIN_GD if b%(discr_only_steps+1)== 0  else TRAIN_D
+                        TRAIN_GD if b%(discr_only_steps+1) == 0 else TRAIN_D
             _train_on_batch_f(text_inputs_dict, images, train_part)
         accumulator.accumulate(epoch)
         logger.on_epoch_end(epoch)
-        logging.info("Done with epoch %s took %ss (difficulty=%s; discr_only_steps=%s)", 
-                        epoch, round(time.time()-start_time, 2), difficulty, discr_only_steps)
+        logging.info("Done with epoch %s took %ss (difficulty=%s; discr_only_steps=%s)",
+                        epoch, round(time.time() - start_time, 2), difficulty, discr_only_steps)
 
 
 if __name__ == "__main__":

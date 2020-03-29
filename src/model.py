@@ -1,20 +1,20 @@
 
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import (
-    Input, Embedding, GRU, 
-    concatenate, Reshape, Flatten, Dense, Lambda, Add,
-    LayerNormalization, BatchNormalization, Dropout, GaussianNoise,
-    LeakyReLU, Activation,
-    Conv2D, Conv2DTranspose    
-)
 import tensorflow.keras.backend as Kb
 import tensorflow.keras as K
-import tensorflow as tf
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import (
+    Input, Embedding, GRU,
+    concatenate, Reshape, Flatten, Dense, Lambda, Add,
+    LayerNormalization, Dropout, GaussianNoise,
+    LeakyReLU, Activation,
+    Conv2D, Conv2DTranspose
+)
 
 import config as cfg
 from utils import CustomLrSchedule, print_model_summary
 from losses import tanh_cross_entropy, wasserstein_loss, binary_crossentropy, saturating_binary_crossentropy
 from minibatch_discrim import MinibatchDiscrimination
+
 
 def get_generator(encoders):
     text_rnn = _get_text_rnn_model(encoders)
@@ -23,6 +23,7 @@ def get_generator(encoders):
     print_model_summary(generator)
 
     return text_rnn, generator
+
 
 def get_models(encoders):
     text_rnn = _get_text_rnn_model(encoders)
@@ -36,6 +37,7 @@ def get_models(encoders):
 
     return text_rnn, generator, discriminator, gan
 
+
 def _add_layer_variable_prefix(model, prefix):
     def add_prefix(layer):
         layer_conf = layer.get_config()
@@ -44,7 +46,8 @@ def _add_layer_variable_prefix(model, prefix):
         return new_layer
     return K.models.clone_model(model, clone_function=add_prefix)
 
-def  _get_text_inputs():
+
+def _get_text_inputs():
     chars = Input(shape=[None], name="chars", dtype="int32")
     spec = Input(shape=[None], name="spec")
     return [chars, spec]
@@ -71,10 +74,11 @@ def _get_text_rnn_model(encoders):
 def _get_generator_model(text_rnn, gen_trains_rnn):
     text_inputs = _get_text_inputs()
     texts_features = text_rnn(text_inputs)
+
     def generate_latent(text_inputs):
         shape = [Kb.shape(text_inputs[0])[0], cfg.LATENT_DIM]  # Batch x Dim
         return Kb.random_uniform(shape=shape, minval=-1., maxval=1.)
-    
+
     latent = Lambda(generate_latent)(text_inputs)
 
     features = concatenate([texts_features, latent])
@@ -106,8 +110,7 @@ def _get_generator_model(text_rnn, gen_trains_rnn):
     text_rnn.trainable = gen_trains_rnn
     model.compile(loss=tanh_cross_entropy,
                 optimizer=K.optimizers.Adam(learning_rate=cfg.GEN_LR),
-                metrics=[K.losses.mean_squared_error, K.losses.mean_absolute_error]
-    )
+                metrics=[K.losses.mean_squared_error, K.losses.mean_absolute_error])
     return model
 
 
@@ -127,14 +130,14 @@ def _get_discriminator_model(text_rnn):
     image_input = Input(shape=[cfg.IMAGE_H, cfg.IMAGE_W, 3], name="image")
     feature_map = GaussianNoise(cfg.NOISE_VAR)(image_input)
     feature_map = Lambda(lambda img: Kb.clip(img, -1., 1.))(feature_map)
-    feature_map = conv(feature_map, 16)  #16
+    feature_map = conv(feature_map, 16)  # 16
 
     texts_feature_map = Dense(16*16*4)(texts_features)
     texts_feature_map = Reshape((16, 16, 4))(texts_feature_map)
     feature_map = concatenate([feature_map, texts_feature_map])
 
-    feature_map = conv(feature_map, 32)  #8
-    feature_map = conv(feature_map, 64)  #4
+    feature_map = conv(feature_map, 32)  # 8
+    feature_map = conv(feature_map, 64)  # 4
 
     feature_map = Conv2D(filters=32, kernel_size=1, padding="same", strides=1, activation=LeakyReLU(alpha=.1))(feature_map)
     feature_map = Dropout(cfg.DROP_PROB)(feature_map)
@@ -151,8 +154,8 @@ def _get_discriminator_model(text_rnn):
     text_rnn.trainable = True
     model.compile(loss=wasserstein_loss if cfg.USE_WGAN_GP else binary_crossentropy,
                 optimizer=K.optimizers.Adam(learning_rate=CustomLrSchedule(), beta_1=cfg.DIS_BETA_1, beta_2=cfg.DIS_BETA_2),
-                metrics=[K.metrics.BinaryAccuracy(threshold=.0)]  # Since we output logits, threshold .0 corresponds to .5 on the sigmoid
-    )
+                metrics=[K.metrics.BinaryAccuracy(threshold=.0)])  # Since we output logits, threshold .0 corresponds to .5 on the sigmoid
+
     return model
 
 
@@ -160,14 +163,9 @@ def _get_gan_model(generator, discriminator):
     text_inputs = _get_text_inputs()
     gen_image = generator(text_inputs)
     logits_p_real = discriminator(text_inputs+[gen_image])
-    
+
     model = Model(inputs=text_inputs, outputs=logits_p_real, name="gan")
     discriminator.trainable = False
     model.compile(loss=wasserstein_loss if cfg.USE_WGAN_GP else binary_crossentropy,
-                optimizer=K.optimizers.Adam(learning_rate=CustomLrSchedule(), beta_1=cfg.DIS_BETA_1, beta_2=cfg.DIS_BETA_2)
-    )
+                optimizer=K.optimizers.Adam(learning_rate=CustomLrSchedule(), beta_1=cfg.DIS_BETA_1, beta_2=cfg.DIS_BETA_2))
     return model
-
-
-# TODO: Build as nested model (ie a class with several Sequentials and a call()) when this is really fixed:
-#  https://github.com/tensorflow/tensorflow/issues/21016

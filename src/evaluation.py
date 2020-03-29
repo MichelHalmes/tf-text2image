@@ -11,7 +11,6 @@ import numpy as np
 import config
 
 
-
 def plot_samples(charss, specs, gen_images, orig_images):
     fig, axes = plt.subplots(nrows=len(charss), ncols=3)
 
@@ -25,9 +24,9 @@ def plot_samples(charss, specs, gen_images, orig_images):
         ax[1].get_yaxis().set_visible(False)
         ax[2].get_xaxis().set_visible(False)
         ax[2].get_yaxis().set_visible(False)
-        txt = ax[0].text(.5, .5, chars+"\n"+spec, 
+        txt = ax[0].text(.5, .5, chars + "\n" + spec,
                         ha='center', va='center', wrap=True)
-        txt._get_wrap_line_width = lambda : 150.
+        txt._get_wrap_line_width = lambda: 150.
         ax[1].imshow(orig_image)
         ax[2].imshow(gen_image)
 
@@ -42,9 +41,8 @@ class EvaluationLogger(K.callbacks.Callback):
         self._generator = generator
         self._data_iter = iter(dataset.batch(3))
         self._encoders = encoders
-        
 
-    def on_epoch_end(self, epoch, logs=None):   
+    def on_epoch_end(self, epoch, logs=None):
         input_dict, images = next(self._data_iter)
         gen_images = self._generator(input_dict)
 
@@ -52,17 +50,17 @@ class EvaluationLogger(K.callbacks.Callback):
         images = self._encoders.image.decode(images)
         gen_images = tf.clip_by_value(gen_images, 0., 1.)
 
-        charss = [self._encoders.chars.decode(chars.numpy()) \
+        charss = [self._encoders.chars.decode(chars.numpy())
                         for chars in input_dict["chars"]]
-        specs = [self._encoders.spec.decode(spec.numpy()) \
+        specs = [self._encoders.spec.decode(spec.numpy())
                         for spec in input_dict["spec"]]
         plot_samples(charss, specs, gen_images, images)
 
 
-class MetricsAccumulator(object):
+class MetricsAccumulator():
 
-    _FIELDS = ["epoch", "discriminator_loss", "discriminator_binary_accuracy", 
-            "gan_loss", "generator_loss", "generator_mean_squared_error", 
+    _FIELDS = ["epoch", "discriminator_loss", "discriminator_binary_accuracy",
+            "gan_loss", "generator_loss", "generator_mean_squared_error",
             "generator_mean_absolute_error", "gradient_penalizer_gp", "gradient_penalizer_wdist"]
 
     def __init__(self, log_dir):
@@ -71,7 +69,7 @@ class MetricsAccumulator(object):
         stats_filename = datetime.now().strftime('%Y%m%d_%H%M') + ".csv"
         stats_path = path.join(log_dir, stats_filename)
         self._csv_file = open(stats_path, "w")
-        self._csv_writer =  None
+        self._csv_writer = None
 
     def _init_writer(self, field_names):
         writer = csv.DictWriter(self._csv_file, fieldnames=field_names)
@@ -99,5 +97,3 @@ class MetricsAccumulator(object):
         self._csv_writer.writerow(metrics_dict)
         self._csv_file.flush()
         self._metric_values = defaultdict(list)
-
-

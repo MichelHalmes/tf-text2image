@@ -13,11 +13,11 @@ def get_generate_fn(difficulty):
         # chars += config.EOS_CHAR
         # spec += " "+config.EOS_CHAR
         # TODO: Retry with EOS for variable length inputs
-        return chars, spec, image 
+        return chars, spec, image
 
     def generate_fn(_):
         return tf.py_function(generate, inp=[_], Tout=(tf.string, tf.string, tf.int32))
-    
+
     return generate_fn
 
 
@@ -29,12 +29,13 @@ def get_encode_text_fn(chars_encoder, spec_encoder):
 
     def encode_text_fn(chars, spec, image):
         return tf.py_function(encode, inp=[chars, spec, image], Tout=(tf.int32, tf.int32, tf.int32))
-    
+
     return encode_text_fn
 
 
 def get_format_img_fn(img_encoder):
     size = [config.IMAGE_H, config.IMAGE_W]
+
     def format_img(chars, spec, image):
         image = tf.image.resize(image, size)
         image = tf.image.convert_image_dtype(image, tf.float32)
@@ -46,7 +47,7 @@ def get_format_img_fn(img_encoder):
     def format_img_fn(chars, spec, image):
         # TODO: avoid py_function
         return tf.py_function(format_img, inp=[chars, spec, image], Tout=(tf.int32, tf.int32, tf.float32))
-    
+
     return format_img_fn
 
 
@@ -56,8 +57,9 @@ def get_set_shapes_fn():
         spec.set_shape([4])
         image.set_shape([config.IMAGE_H, config.IMAGE_W, 3])
         return {"chars": chars, "spec": spec}, image
-    
+
     return set_shapes_fn
+
 
 def _iter_forever():
     cnt = 0
@@ -65,17 +67,16 @@ def _iter_forever():
         cnt += 1
         yield cnt
 
+
 def get_dataset(encoders, difficulty=-1):
     # We do all the work in the map functions so that the work can be better paralellized
     ds = tf.data.Dataset.from_generator(
-        _iter_forever, 
-        output_types=tf.int32, 
+        _iter_forever,
+        output_types=tf.int32,
     )
     ds = ds.map(get_generate_fn(difficulty))
     ds = ds.map(get_encode_text_fn(encoders.chars, encoders.spec))
     ds = ds.map(get_format_img_fn(encoders.image))
     ds = ds.map(get_set_shapes_fn())
-    ds = ds.prefetch(config.BATCH_SIZE*2)
+    ds = ds.prefetch(config.BATCH_SIZE * 2)
     return ds
-
-

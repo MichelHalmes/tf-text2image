@@ -12,14 +12,15 @@ from data.encoders import get_encoders
 from model import get_generator
 import config
 
+
 def train():
     encoders = get_encoders()
 
     generator = get_generator(encoders)
 
     checkpoint_dir = path.join(config.CHECKPOINT_DIR, "tf")
-    estimator = K.estimator.model_to_estimator(keras_model=generator, 
-                                        model_dir=checkpoint_dir, 
+    estimator = K.estimator.model_to_estimator(keras_model=generator,
+                                        model_dir=checkpoint_dir,
                                         checkpoint_format="saver")  # TODO: use 'checkpoint' once object-based checkpoints supported
 
     def input_fn():
@@ -38,7 +39,7 @@ def train():
     )
 
 
-if __name__ =="__main__":
+if __name__ == "__main__":
     logging.basicConfig(
         stream=sys.stdout,
         level=logging.INFO,

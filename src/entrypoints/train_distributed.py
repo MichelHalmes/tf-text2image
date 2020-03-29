@@ -50,12 +50,11 @@ def train(restore, is_master=True):
         dataset = get_dataset(encoders)
         train_data = dataset.batch(config.BATCH_SIZE)
 
-        generator = get_generator(encoders)
+        _, generator = get_generator(encoders)
 
         checkpoint_path = path.join(config.CHECKPOINT_DIR, "keras", "generator.ckpt")
         if restore:
             generator.load_weights(checkpoint_path)
-
 
     callbacks = []
     if is_master:
@@ -70,7 +69,6 @@ def train(restore, is_master=True):
     generator.fit(train_data, epochs=config.NUM_EPOCHS, initial_epoch=initial_epoch,
                 steps_per_epoch=config.STEPS_PER_EPOCH,
                 callbacks=callbacks)
-
 
 
 if __name__ == "__main__":

@@ -5,10 +5,11 @@ import numpy as np
 
 import config as cfg
 
-##   TANH CROSS ENTROPY   ##
+###   TANH CROSS ENTROPY   ###
+
 
 def tanh_cross_entropy(y_true, y_pred):
-    # See README for details 
+    # See README for details
     use_logits, logits = _get_tanh_logits(y_pred)
     if use_logits:
         # We use the numerically stable method from logits
@@ -35,20 +36,21 @@ def _get_tanh_logits(y_pred):
 
 
 def _tce_logit_abs(y_true, logits):
-        # We always have negative terms in the exp, making it numerically stable
-        term = 1. + Kb.exp(-2.*Kb.abs(logits))
-        tce = Kb.log(term) + Kb.abs(logits)
-        tce -= y_true*logits + Kb.log(2.)
-        return Kb.mean(tce, axis=-1)
+    # We always have negative terms in the exp, making it numerically stable
+    term = 1. + Kb.exp(-2. * Kb.abs(logits))
+    tce = Kb.log(term) + Kb.abs(logits)
+    tce -= y_true*logits + Kb.log(2.)
+    return Kb.mean(tce, axis=-1)
 
 
-def _tce(y_true, y_pred):    
-        y_pred = Kb.clip(y_pred, -1., 1.)
-        tce = (1. - y_true) * Kb.log(1. - y_pred + Kb.epsilon())
-        tce += (1. + y_true) * Kb.log(1. + y_pred + Kb.epsilon())
-        return -.5 * Kb.mean(tce, axis=-1)
+def _tce(y_true, y_pred):
+    y_pred = Kb.clip(y_pred, -1., 1.)
+    tce = (1. - y_true) * Kb.log(1. - y_pred + Kb.epsilon())
+    tce += (1. + y_true) * Kb.log(1. + y_pred + Kb.epsilon())
+    return -.5 * Kb.mean(tce, axis=-1)
 
-##   WASSERSTEIN LOSS  ##
+###   WASSERSTEIN LOSS  ###
+
 
 def wasserstein_loss(y_true, y_pred):
     """ y_pred: ``logit``=f in the paper
@@ -66,14 +68,15 @@ def clip_weights(network, clip_value):
         weights = [np.clip(w, -clip_value, clip_value) for w in weights]
         layer.set_weights(weights)
 
-class GradientPenalizer(object):
+
+class GradientPenalizer():
     """ Implementation of: https://arxiv.org/abs/1704.00028
         This is the most elegant solution I could come up with:
         https://github.com/tensorflow/tensorflow/issues/36436
     """
 
     def __init__(self, discriminator, gp_only):
-        """ gp_only: 
+        """ gp_only:
                 True -> Minimizes the gradient penalty only
                 False -> Also optimizes our estimate of the Wasserstein distance """
         self._discriminator = discriminator
@@ -86,7 +89,8 @@ class GradientPenalizer(object):
         interpolated_images = self._interpolate_images(real_images, fake_images)
         return self.run_step(text_inputs, real_images, fake_images, interpolated_images)
 
-    def _interpolate_images(self, real_images, fake_images):
+    @staticmethod
+    def _interpolate_images(real_images, fake_images):
         eps = Kb.random_uniform([cfg.BATCH_SIZE, 1, 1, 1])
         interpolated_images = eps * real_images + (1 - eps) * fake_images
         interpolated_images = tf.Variable(interpolated_images)
@@ -104,12 +108,13 @@ class GradientPenalizer(object):
             if not self._gp_only:
                 loss -= w_dist
 
-        trainable_vars = [var for var in self._discriminator.variables if not var.name.startswith("text_rnn")]
+        trainable_vars = [var for var in self._discriminator.variables
+                                if not var.name.startswith("text_rnn")]
         disc_gradients = tape.gradient(loss, trainable_vars)
 
         self._discriminator.optimizer.apply_gradients(zip(disc_gradients, trainable_vars))
         return [gradient_penalty, w_dist]
-    
+
     def _compute_gradients(self, interpolated_images, text_inputs):
         with tf.GradientTape() as tape:
             inputs_dict = {"image": interpolated_images, **text_inputs}
@@ -119,7 +124,8 @@ class GradientPenalizer(object):
         gradients = tape.gradient(interpolated_logits, [interpolated_images])
         return gradients[0]
 
-    def _compute_gradient_penalty(self, gradients):
+    @staticmethod
+    def _compute_gradient_penalty(gradients):
         gradients_sqr = Kb.square(gradients)
         gradients_sqr_sum = Kb.sum(gradients_sqr,
                                 axis=np.arange(1, len(gradients_sqr.shape)))
@@ -135,9 +141,10 @@ class GradientPenalizer(object):
         return Kb.mean(logits)
 
 
-## LOSS FROM ORIGINAL GAN PAPER ##
-    
+### LOSS FROM ORIGINAL GAN PAPER ###
+
 binary_crossentropy = K.losses.BinaryCrossentropy(from_logits=True)
+
 
 @tf.function
 def saturating_binary_crossentropy(y_true, y_pred):
@@ -146,10 +153,7 @@ def saturating_binary_crossentropy(y_true, y_pred):
     return - binary_crossentropy(y_true, y_pred)
 
 
-    
-if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-
+def plot_tce_loss():
     logits = tf.range(-5, 5, .1, dtype=tf.float32)
     logits = tf.expand_dims(logits, -1)
     y_pred = tf.math.tanh(logits)
@@ -160,3 +164,7 @@ if __name__ == "__main__":
     plt.plot(y_pred, tce_2, "r--")
 
     plt.show()
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+    plot_tce_loss()
