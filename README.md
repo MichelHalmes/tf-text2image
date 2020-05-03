@@ -1,7 +1,4 @@
 # tf-text2image
- 
-| **Work In Progress** |
-| --- |
 
 This project uses a neural network to generate images from text using TensorFlow 2.
 
@@ -200,6 +197,6 @@ Samples form our baseline GAN are shown below:
 <img src="media/GAN_evaluation_3.png" alt="GAN_evaluation_3" width="250">
 </p>
 
-We notice that the model has difficulties generating matplotlib-green which is `(0, 0.5, 0)` in RGB. Since is the only color with a value of .5,which is where the sigmoid/tanh, has maximum slope. The output value of the model must therefore be very precise to output this value, which is hard.
+We notice that the model has difficulties generating matplotlib-green which is `(0, 0.5, 0)` in RGB. THis is because it is the only color with a value of `.5`, which is where the sigmoid/tanh has maximum slope. The output value of the model must therefore be very precise, which is hard.
 
 
